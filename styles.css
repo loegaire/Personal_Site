@@ -1,0 +1,27 @@
+h1 {
+  color: #f4c586;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.5); /* black with 50% transparency */
+  padding: 1rem; /* some space around the text */
+  border-radius: 8px; /* optional: rounded corners */
+  display: inline-block;
+}
+section {
+  color: #f4c586;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.5); /* black with 50% transparency */
+  padding: 1rem; /* some space around the text */
+  border-radius: 8px; /* optional: rounded corners */
+  display: inline-block;
+
+}
+header {
+  text-align: center;
+}
+body {
+  margin: 0; /* remove default margin */
+  min-height: 100vh;
+   background-image: url('sitebg2.png');
+   background-size: cover;  
+  background-repeat: no-repeat;  /* Prevent tiling */
+}
