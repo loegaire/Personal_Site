@@ -1,11 +1,11 @@
 :root {
-  --main-color: #f4c586;
-  --bg-dark: rgba(0, 0, 0, 0.5);
+  --main-color: #f28974; 
+  --bg-dark: rgba(0, 0, 0, 0.8);
 }
 h1 {
   color: var(--main-color);
   text-align: center;
-  background-color: rgba(0, 0, 0, 0.5); 
+  background-color: var(--bg-dark); 
   padding: 1rem;   border-radius: 8px;
   display: inline-block;
 }
@@ -15,28 +15,31 @@ main {
   gap: 2rem;
 }
 section a {
+  font-size: 1rem;
   color: var(--main-color);
 }
 section a:hover {}
+section div{
+  display: flex;
+}
+section div img {
+  padding-left: 16rem;
+  width:10rem;
+}
 section {
-   margin: 2rem auto;
+  gap: 2rem;
+  display: inline-block;
+  margin: 2rem auto;
   color: var(--main-color);
   text-align: left;
-  background-color: rgba(0, 0, 0, 0.5); /* black with 50% transparency */
-  padding: 1rem; /* some space around the text */
-  border-radius: 8px; /* optional: rounded corners */
-  display: inline-block;
-  width: 50vw;
+  background-color: var(--bg-dark);   padding: 1rem;   border-radius: 8px;   width: 50vw;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
 }
-section2 {
+.\32 {
    margin: 2rem auto;
   color: var(--main-color);
   text-align: left;
-  background-color: rgba(0, 0, 0, 0.5); /* black with 50% transparency */
-  padding: 1rem; /* some space around the text */
-  border-radius: 8px; /* optional: rounded corners */
-  display: inline-block;
+  background-color: var(--bg-dark);   padding: 1rem;   border-radius: 8px;   display: inline-block;
   width: 50vw;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
 }
@@ -45,12 +48,13 @@ header {
   text-align: center;
 }
 body {
+  /*cursor*/
   font-family: 'Sansation', sans-serif;
   font-size: 20px;
   /*font stuff*/
   margin: 0; 
   min-height: 100vh;
-   background-image: url('sitebg2.png');
+   background-image: url('bg.gif');
    background-size: cover;  
   background-repeat: no-repeat;
 }
