@@ -2,16 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Emoji:wght@700&family=Sansation:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+
   <link
   rel="stylesheet"
   href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
   />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <title>Your Page Title</title>
+  <title>Thinh's personal site!</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -24,9 +26,16 @@
         <a href="#">trang</a>
       </nav>
     </div>
-
-
-        <h1>Hi, welcome to my corner</h1>
+    <audio autoplay id="my-audio">
+      <source id="audio-source" src="Lukewarm.mp3" type="audio/mpeg" />
+    </audio>
+    <div class="audio-controls">
+      <button id="prev"><i class="fa-solid fa-backward"></i></button>
+      <button id="play"><i class="fa-solid fa-play"></i></button>       
+      <button id="next"><i class="fa-solid fa-forward"></i></button>
+      <input type="range" id="progress" value="0" min="0" step="1">
+   </div>
+    <h1>Hi, welcome to my corner!</h1>
   </header>
 
   <main>
@@ -39,15 +48,17 @@
       <p>My name is Thinh, I'm a student/security enthusiast at Hanoi University of Science and Technology! My current interests are Reverse Engineering and Digital Forensics</p>
       <a class="github" href="https://github.com/loegaire"><i class="fab fa-github"></i>GitHub</a>
       <a class="facebook" href="https://www.facebook.com/thinh.to.52687506/"><i class="fab fa-facebook"></i>Facebook</a> 
-      <a class="codeforces" href="https://codeforces.com/profile/yourhandle">
-         <i class="fas fa-code"></i> Codeforces
+      <a class="codeforces" href="https://codeforces.com/profile/yourhandle"><i class="fa-solid fa-code"></i> Codeforces
       </a>
+      
+      <a class="ctftime" href="https://ctftime.org/team/374531"><i class="fa-solid fa-timer"></i> CTFtime</a>
     </section>
     <section class="projects">
       <h2>My stuff</h2>
       <p><i class="fa-solid fa-archive"></i>  CTF writeups</p>
+      <p><i class="fa-solid fa-pen-nib"></i> Academic projects</p>
     </section>
-     </main>
+  </main>
   
   <footer>
     <p>&copy; 2025 To Quang Thinh</p>

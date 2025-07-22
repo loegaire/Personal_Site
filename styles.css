@@ -4,8 +4,9 @@
 }
 h1 {
   color: var(--main-color);
+  -webkit-text-stroke: 1px black;
   text-align: center;
-    padding: 1rem;   border-radius: 8px;
+  padding: 1rem;   border-radius: 8px;
   display: inline-block;
 }
 main {
@@ -37,6 +38,14 @@ section.about {
   padding: 1rem;   border-radius: 8px;   width: 50vw;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
 }
+section.about * {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+section.about *:hover {
+  background-color: var(--main-color);
+  color: #111;
+  }
 section.projects {
    margin: 2rem auto;
   backdrop-filter: blur(10px);
@@ -47,14 +56,27 @@ section.projects {
   width: 50vw;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
 }
+section.projects * {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+section.projects *:hover {
+  background-color: var(--main-color);
+  color: #111;
+}
+section.projects p{
+    padding-left: 3rem;
+}
 
 header {
   text-align: center;
 }
 body {
   /*cursor*/
-  font-family: 'Sansation', sans-serif;
-  font-size: 20px;
+  font-family: "Silkscreen", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 1rem;
   /*font stuff*/
   margin: 0; 
   min-height: 100vh;
@@ -105,7 +127,47 @@ body {
   margin: 1rem 0;
   transition: color 0.2s;
 }
-
 .side-menu a:hover {
   color: var(--main-color); /* Or any accent color you use */
 }
+audio {
+  display: none;
+}
+/*music player*/
+.audio-controls {
+  position: fixed;
+  right: -15rem;
+  top: 0.5rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 1rem;   border-radius: 8px;
+  transition: right 0.4s ease-in-out;
+}
+.audio-controls button {
+  background-color: transparent;
+  color: var(--main-color);
+  border: none;
+}
+.audio-controls button:hover{
+  box-shadow: 0 0 10px var(--main-color),
+              0 0 20px var(--main-color),
+              0 0 30px var(--main-color);
+  transform: scale(1.05);
+  cursor: pointer;
+  border-radius: 5rem;
+}
+.audio-controls:hover{
+  right:0.5rem;
+  background-color: var(--bg-dark);
+}
+.audio-controls input[type="range"] {
+  accent-color: var(--main-color);
+  width: 10rem;
+  margin-left: 1rem;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  cursor: ew-resize;
+}
+
