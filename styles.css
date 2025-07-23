@@ -9,6 +9,19 @@ h1 {
   padding: 1rem;   border-radius: 8px;
   display: inline-block;
 }
+body.blur-about > *:not(main),
+body.blur-about main > *:not(.about) {
+  backdrop-filter: blur(5px);
+  filter: blur(4px);
+  transition: filter 0.3s ease;
+}
+body.blur-projects > *:not(main),
+body.blur-projects main > *:not(.projects) {
+  backdrop-filter: blur(5px);
+  filter: blur(4px);
+  transition: filter 0.3s ease;
+}
+
 main {
   padding: 10px;
   display:flex;
@@ -41,10 +54,14 @@ section.about {
 section.about * {
   transition: background-color 0.4s ease, color 0.4s ease;
 }
-
+main:has(.about:hover) > *:not(.about) {
+  filter: blur(4px);
+  transition: filter 0.3s ease;
+}
 section.about *:hover {
   background-color: var(--main-color);
   color: #111;
+  z-index: 3;
   }
 section.projects {
    margin: 2rem auto;
@@ -80,8 +97,8 @@ body {
   /*font stuff*/
   margin: 0; 
   min-height: 100vh;
-   background-image: url('bg.gif');
-   background-size: cover;  
+  background-image: url('bg.gif');
+  background-size: cover;  
   background-repeat: no-repeat;
 }
 /*menu stuff*/
@@ -97,7 +114,7 @@ body {
   color: white;
   padding: 1rem;
   cursor: pointer;
-  z-index: 1001;
+  z-index: 2;
 }
 
 .side-menu {
@@ -112,7 +129,7 @@ body {
   flex-direction: column;/**/
   padding: 2rem 1rem;
   transition: left 0.4s ease;
-  z-index: 1000;
+  z-index: 1;
 }
 
 /* Slide in on hover over menu-toggle or side-menu itself */
@@ -170,4 +187,31 @@ audio {
   outline: none;
   cursor: ew-resize;
 }
+/* CTF hover stuff */
+.ctfContainer{
+  flex-direction: column;
+  display: flex;
+}
+.ctfWriteUps {
+  padding-left: 4rem;
+  flex-direction: column;
+  display: flex;
+  max-height: 0rem;
+  transition:max-height 3s ease;
+  overflow: hidden; /* This is crucial to hide content when height is 0 */
+}
+.ctfWriteUps a{
+  color: #222;
+}
+.writeupWindow {
+  position: fixed;
+  bottom:0rem;
+}
+.ctfWriteUps a:hover .writeupWindow{
+  bottom:4rem;
+}
+.projects .ctfContainer:hover .ctfWriteUps {
+  max-height: 10rem;
+}
+
 

@@ -1,3 +1,23 @@
+/*blurry eveyrthing*/
+const myStuffSection = document.querySelector('.projects');
+const aboutSection = document.querySelector('.about');
+const body = document.body;
+/*blur everyth when hovered*/
+aboutSection.addEventListener('mouseenter', () => {
+    body.classList.add('blur-about');
+  });
+  
+  aboutSection.addEventListener('mouseleave', () => {
+    body.classList.remove('blur-about');
+  });
+myStuffSection.addEventListener('mouseenter', () => {
+    body.classList.add('blur-projects');
+  });
+  
+  myStuffSection.addEventListener('mouseleave', () => {
+    body.classList.remove('blur-projects');
+  });
+/*music player*/
 const audio = document.getElementById('my-audio');
 const playBtn = document.getElementById('play');
 const songs = ["Lukewarm.mp3", "Rolling Like A Ball.mp3","ラグトレイン.mp3"];
