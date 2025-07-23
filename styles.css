@@ -189,7 +189,7 @@ audio {
 }
 /* CTF hover stuff */
 .ctfContainer{
-  flex-direction: column;
+  flex-direction: row;
   display: flex;
 }
 .ctfWriteUps {
@@ -197,20 +197,23 @@ audio {
   flex-direction: column;
   display: flex;
   max-height: 0rem;
-  transition:max-height 3s ease;
-  overflow: hidden; /* This is crucial to hide content when height is 0 */
+    overflow: hidden; /* This is crucial to hide content when height is 0 */
 }
 .ctfWriteUps a{
   color: #222;
 }
 .writeupWindow {
   position: fixed;
-  bottom:0rem;
+  bottom:-15rem;
+   left:-7rem;
 }
-.ctfWriteUps a:hover .writeupWindow{
-  bottom:4rem;
+.ctfContainer:hover .writeupWindow {
+  bottom: -10rem;
+  transition: bottom 2s ease;
+
 }
 .projects .ctfContainer:hover .ctfWriteUps {
+  transition:max-height 3s ease;
   max-height: 10rem;
 }
 
