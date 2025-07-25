@@ -65,12 +65,9 @@ prevBtn.addEventListener('click',prevSong);
 const writeupWindow = document.querySelector('.writeupWindow');
 
 async function display_writeup() {
-  writeupWindow.style.height = "70rem";
-  writeupWindow.style.bottom = "-15rem";
+  writeupWindow.style.height = "37rem";
+  writeupWindow.style.bottom = "-14rem";
   const iframe = document.getElementById('writeupFrame');
   iframe.src = 'anti-debugging.html';
-  iframe.onload = () => {
-    iframe.contentWindow.scrollTo(0, 0);
-  };
 }
 
