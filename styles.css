@@ -1,6 +1,8 @@
 :root {
   --main-color: #f28974; 
-  --bg-dark: rgba(0, 0, 0, 0.75);
+  --bg-dark: rgba(34, 42, 54, 0.8);
+  --main-contrast: #222936;
+
 }
 h1 {
   color: var(--main-color);
@@ -200,20 +202,36 @@ audio {
     overflow: hidden; /* This is crucial to hide content when height is 0 */
 }
 .ctfWriteUps a{
+  border-top:var(--main-contrast) 2px solid;
+  border-left:var(--main-contrast) 2px solid ;
   color: #222;
+}
+.ctfWriteUps a:hover{
+  cursor:pointer;
+}
+.ctfWriteUps a:active ~ .writeupWindow{
+  bottom:10rem;  
 }
 .writeupWindow {
   position: fixed;
-  bottom:-15rem;
-   left:-7rem;
-}
-.ctfContainer:hover .writeupWindow {
-  bottom: -10rem;
-  transition: bottom 2s ease;
+  bottom:-20rem;
+  left:-41rem;
+  width: 80rem;
+  height: 70rem;
+  border: 1px solid var(--main-color);
+  border-radius: 1rem;
+  background-color: var(--bg-dark);
+  overflow: hidden;
+  transition: bottom 0.4s ease;
+  z-index: 999;
+} 
 
+.ctfContainer:hover .writeupWindow {
+  bottom: -14rem;
+  transition: bottom 0.5s ease;
 }
 .projects .ctfContainer:hover .ctfWriteUps {
-  transition:max-height 3s ease;
+  transition:max-height 2s ease;
   max-height: 10rem;
 }
 

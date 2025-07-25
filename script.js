@@ -61,3 +61,12 @@ progress.addEventListener('input', () => {
   
 nextBtn.addEventListener('click',nextSong);
 prevBtn.addEventListener('click',prevSong);
+//display writeups
+const writeupWindow = document.querySelector('.writeupWindow');
+
+async function display_writeup() {
+  writeupWindow.style.bottom = "1rem"
+  const iframe = document.getElementById('writeupFrame');
+  iframe.src = 'anti-debugging.html';
+}
+

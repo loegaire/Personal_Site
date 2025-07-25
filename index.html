@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
-
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link
   rel="stylesheet"
   href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -21,9 +21,9 @@
     <div class="menu-container">
       <div class="menu-toggle">☰</div>
       <nav class="side-menu">
-        <a href="#">hoang</a>
-        <a href="#">thuy</a>
-        <a href="#">trang</a>
+        <a href="#">ng</a>
+        <a href="#">uy</a>
+        <a href="#">ng</a>
       </nav>
     </div>
     <audio autoplay id="my-audio">
@@ -45,7 +45,7 @@
           <img src="avt.jpg" alt="ren-chon"></img>
 
       </div>
-      <p>My name is Thinh, I'm a student/security enthusiast at Hanoi University of Science and Technology! My current interests are Reverse Engineering and Digital Forensics</p>
+      <p>My name is Thinh. My current interests are Reverse Engineering and Digital Forensics</p>
       <a class="github" href="https://github.com/loegaire"><i class="fab fa-github"></i>GitHub</a>
       <a class="facebook" href="https://www.facebook.com/thinh.to.52687506/"><i class="fab fa-facebook"></i>Facebook</a> 
       <a class="codeforces" href="https://codeforces.com/profile/yourhandle"><i class="fa-solid fa-code"></i> Codeforces
@@ -57,11 +57,11 @@
      <div class="ctfContainer">
         <p class="ctfWriteUpsTitle"><i class="fa-solid fa-archive"></i> CTF writeups</p>
         <div class="ctfWriteUps">
-          <a><i class="fa-regular fa-sparkle"></i>BYUCTF 2025</a>
+          <a onclick="display_writeup()"><i class="fa-regular fa-sparkle"></i>BYUCTF 2025</a>
           <a><i class="fa-regular fa-sparkle"></i>DownUnderCTF 2025</a>
           <a><i class="fa-regular fa-sparkle"></i>HackTheBox Cyber Apocalyse 2025</a>
            <div class="writeupWindow">
-            <p>Content</p>
+            <iframe id="writeupFrame" style="width:100%; height:100%; border:none; display:block;"></iframe>
            </div>
         </div>
       </div>
@@ -74,5 +74,6 @@
   </footer>
 
   <script src="script.js"></script>
+
 </body>
 </html>
