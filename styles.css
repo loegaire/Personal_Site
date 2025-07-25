@@ -199,7 +199,7 @@ audio {
   flex-direction: column;
   display: flex;
   max-height: 0rem;
-    overflow: hidden; /* This is crucial to hide content when height is 0 */
+  overflow: hidden; /* This is crucial to hide content when height is 0 */
 }
 .ctfWriteUps a{
   border-top:var(--main-contrast) 2px solid;
@@ -214,14 +214,14 @@ audio {
 }
 .writeupWindow {
   position: fixed;
-  bottom:-20rem;
+  bottom:-30rem;
   left:-41rem;
   width: 80rem;
-  height: 70rem;
+  height: 2rem;
   border: 1px solid var(--main-color);
   border-radius: 1rem;
   background-color: var(--bg-dark);
-  overflow: hidden;
+  overflow: auto;
   transition: bottom 0.4s ease;
   z-index: 999;
 } 
