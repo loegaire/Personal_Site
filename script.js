@@ -64,10 +64,14 @@ prevBtn.addEventListener('click',prevSong);
 //display writeups
 const writeupWindow = document.querySelector('.writeupWindow');
 
-async function display_writeup() {
+async function display_writeup(title) {
+  writeupWindow.style.position = "fixed";
   writeupWindow.style.height = "37rem";
-  writeupWindow.style.bottom = "-14rem";
+  writeupWindow.style.bottom = "-12rem";
   const iframe = document.getElementById('writeupFrame');
-  iframe.src = 'anti-debugging.html';
+  iframe.src = title;
 }
-
+function exit_writeup(){
+  writeupWindow.style.bottom = "-30rem";
+  writeupWindow.style.height = "1rem";
+}

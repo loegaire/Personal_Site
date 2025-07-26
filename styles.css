@@ -225,6 +225,19 @@ audio {
   transition: bottom 0.4s ease;
   z-index: 3;
 } 
+.exitWriteup {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 4;
+  background-color: var(--main-contrast);
+  color: var(--main-color);
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font-size: 1rem;
+}
 .writeupWindow iframe {
   width: 100%;
   height: 100%;
