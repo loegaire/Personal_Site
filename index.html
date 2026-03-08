@@ -6,7 +6,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link
   rel="stylesheet"
   href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -21,9 +20,34 @@
     <div class="menu-container">
       <div class="menu-toggle">☰</div>
       <nav class="side-menu">
-        <a href="#">ng</a>
-        <a href="#">uy</a>
-        <a href="#">ng</a>
+        <section class="about">
+          <div class="aboutHeader">
+            <h2>About me</h2>
+            <img src="avt.jpg" alt="ren-chon"></img>
+          </div>
+          <p>My name is Thinh. My current interests are Reverse Engineering and Digital Forensics</p>
+          <a class="github" href="https://github.com/loegaire"><i class="fab fa-github"></i>GitHub</a>
+          <a class="facebook" href="https://web.facebook.com/thinh.to.536599/"><i class="fab fa-facebook"></i>Facebook</a>
+          <a class="codeforces" href="https://codeforces.com/profile/yourhandle"><i class="fa-solid fa-code"></i> Codeforces
+          </a>
+          <a class="ctftime" href="https://ctftime.org/team/374531"><i class="fa-solid fa-timer"></i> CTFtime</a>
+        </section>
+
+        <section class="projects">
+          <h2>My stuff</h2>
+          <div class="ctfContainer">
+            <p class="ctfWriteUpsTitle"><i class="fa-solid fa-archive"></i> CTF writeups</p>
+            <div class="ctfWriteUps" id="writeupList" aria-live="polite">
+              <p class="writeupLoading">Loading writeups...</p>
+            </div>
+          </div>
+          <div class="researchContainer">
+            <p class="researchTitle"><i class="fa-solid fa-pen-nib"></i> Academic projects</p>
+            <div class="researchPosts" id="researchList" aria-live="polite">
+              <p class="writeupLoading">Loading projects...</p>
+            </div>
+          </div>
+        </section>
       </nav>
     </div>
     <audio autoplay id="my-audio">
@@ -35,46 +59,43 @@
       <button id="next"><i class="fa-solid fa-forward"></i></button>
       <input type="range" id="progress" value="0" min="0" step="1">
    </div>
-       <h1>Hi, welcome to my corner!</h1>
+       <h1>Thinh's personal site!</h1>
   </header>
 
   <main>
-    <section class="about">
-      <div>
-        <h2>About me</h2>
-          <img src="avt.jpg" alt="ren-chon"></img>
-
-      </div>
-      <p>My name is Thinh. My current interests are Reverse Engineering and Digital Forensics</p>
-      <a class="github" href="https://github.com/loegaire"><i class="fab fa-github"></i>GitHub</a>
-      <a class="facebook" href="https://www.facebook.com/thinh.to.52687506/"><i class="fab fa-facebook"></i>Facebook</a> 
-      <a class="codeforces" href="https://codeforces.com/profile/yourhandle"><i class="fa-solid fa-code"></i> Codeforces
-      </a>
-      <a class="ctftime" href="https://ctftime.org/team/374531"><i class="fa-solid fa-timer"></i> CTFtime</a>
-    </section>
-    <section class="projects">
-      <h2>My stuff</h2>
-     <div class="ctfContainer">
-        <p class="ctfWriteUpsTitle"><i class="fa-solid fa-archive"></i> CTF writeups</p>
-        <div class="ctfWriteUps">
-          <a onclick="display_writeup('anti-debugging.html')"><i class="fa-regular fa-sparkle"></i>BYUCTF 2025</a>
-          <a onclick="display_writeup('picoCTF-2025.html')"><i class="fa-regular fa-sparkle"></i>picoCTF 2025</a>
-          <a onclick="display_writeup('j97.html')"><i class="fa-regular fa-sparkle"></i>BKSEC-TTV 2025</a>
-          <a onclick="display_writeup('DUCTF writeups.html')"><i class="fa-regular fa-sparkle"></i>DUCTF 2025</a>
-          <a><i class="fa-regular fa-sparkle"></i>HackTheBox Cyber Apocalypse 2025</a>
-          <div class="writeupWindow">
-            <button class="exitWriteup" onclick="exit_writeup()"><i class="fa-solid fa-xmark"></i></button>
-            <iframe id="writeupFrame"></iframe>
-          </div>
+    <section class="feedPanel" aria-labelledby="feedTitle">
+      <div class="feedToolbar">
+        <div>
+          <h2 id="feedTitle">Newest writeups</h2>
+          <div class="feedSubtitle" id="feedSubtitle"></div>
         </div>
       </div>
-      <p><i class="fa-solid fa-pen-nib"></i> Academic projects</p>
+
+      <div class="feedList" id="feedList" aria-live="polite"></div>
+      <article class="feedArticle markdown-content" id="feedArticle"></article>
     </section>
   </main>
   
   <footer>
   </footer>
 
+  <button id="feedBack" class="feedBack" type="button" aria-label="Back to feed">
+    <span aria-hidden="true">←</span>
+  </button>
+
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <script src="content/writeups-data.js"></script>
   <script src="script.js"></script>
 
 </body>

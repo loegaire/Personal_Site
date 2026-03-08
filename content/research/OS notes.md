@@ -1,0 +1,270 @@
+- # ch4: - bộ nhớ
+	- chương trình lưu ở đâu, lưu thế nào, các loại bộ nhớ (6 lớp từ nhanh đến chậm)
+	- bộ nhớ khác nhau ở kích thước và tốc độ truy cập
+	- các bước compile chương trình
+		- nạp chương trình ở bất cứ đâu, có 3 loại địa chỉ
+			- tương đối
+			- tuyêt đối
+			- biểu tượng
+	- ### các cấu trúc chương trình:
+		- ##### ==tuyến tính==
+			- compile xong là xong luôn
+			- tất cả con trỏ được thay bằng giá trị cụ thể
+			- để thực hiện chỉ cần biết địa chỉ 1 lần
+			- ưu:
+				- đơn giản
+				- nhanh
+				- lưu động cao
+			- nhược:
+				- lãng phí nhớ
+				- không thực hiện chương trình kích thước to hơn RAM
+		- ##### nạp động 
+			- mỗi file/thư viện biên tập riêng
+			- khi chạy thì tìm file gốc, trong quá trình chạy thì giải phóng và thay dần cái khác vào khi cần
+			- ưu:
+				- chương trình có thể > ram
+				- sử dụng ram hiệu quả
+			- nhược:
+				- tốc độ chậm
+				- cần nạp xóa hợp lý
+		- ##### lk động
+			- chỉ liên kết khi chạy chương trình
+			- một phần mã phải dùng để tìm đúng cái để liên kết 
+			- **HAY DÙNG CHO XÂY DỰNG THƯ VIỆN**
+		- ##### overlays
+			- code chia làm các mức
+				- mức 0: code gốc, nạp các vùng code khác 
+				- mức 1: không chứa code từ mức 0 và không có cùng lúc với mức 0
+				- ...
+			- bộ nhớ cũng chia thành mức
+				- size = size của code(module) lớn nhất của một mức 
+			- cần cùng cấp thông tin cho OS (sơ đồ overlays)
+			- modul mức 0 biên tập riêng
+			- khi chạy chương trình, nạp modul mức 0 như chtrinh bth 
+	- ### quản lý bộ nhớ: 
+		- # phân chương cố định:
+			- bô nhớ chia làm n phần
+			- kích cỡ tùy ý
+			- sử dụng độc lập:
+				- mỗi chương trình nằm trong 1 phần, chỉ 1 trong 1, nằm đến khi chạy xong
+			- vấn đề:
+				- có 1 hàng đợi chung => chtrinh nhỏ nạp vào phần lớn
+				- mỗi chương 1 hàng đợi riêng => cái thì đầy, cái thì quá tải
+			- ưu điểm:
+				- đơn giản
+				- dễ bảo vệ (chỉ cần so sánh 2 khóa)
+				- giảm thời gian tìm kiếm
+			- nhược:
+				- phải sao chép modul điều khiển thành nhiều bản
+				- bị phân đoạn bộ nhớ trong: còn trống nhiều nhưng không nạp được chương trình khác => (kết hợp đoạn kề nhau, di chuyển các đoạn)
+				- chỉ có thể chạy *n* chương trình
+		- # phân chương động:
+			- chỉ có một danh sách quản lý
+			- bộ nhớ tự do, khi có tiến trình mới thì tách ra 2 phần, 1 phần cho tiến trình phần còn lại update vào danh sách
+			- khi tiến trình kết thúc thì kết hợp lại với vùng trống liền kề nếu có
+			- các chiến lược:
+				- ==worst fit==
+				- ==best fit==
+				- ==first fit==
+		- # buddy allocation:
+			- chia đôi liên tiếp vùng trống đến khi thỏa mãn
+			- sau một thời gian, cần bố trí lại bộ nhớ cho ít lỗ hổng
+				- dịch chuyển tiến trình (khó)
+				- swapping (đóng băng, bố trí lại, rồi nhét lại vào)
+			- ưu:
+				- duyệt nhanh
+				- không phải lưu nhiều bản sao của modul đk
+				- chạy bao nhiêu chương trình tùy ý
+			- nhược:
+				- k thực hiện đc chtrinh lớn hơn ram
+				- tạo nhiều vùng rác
+				- ==phân đoạn ngoài==
+	- # Phân đoạn
+			- ==SCB==
+			- ![[Pasted image 20260117085755.png]]
+			- ![[Pasted image 20260117090551.png]]
+			- ưu:
+				- sơ đồ tự động
+				- ==dễ dàng bảo vệ đoạn
+				- ==kiểm tra lỗi truy cập==
+				- ==cho phép sử dụng chung đoạn
+					- vấn đề
+			- nhược:
+				- hiệu quả phụ thuộc cấu trúc
+				- ==phân mảnh bộ nhớ 
+- # Phân trang
+			- bộ nhớ vật lý chia thành các "trang" bằng nhau
+			- bộ nhớ logic chia thành các trang kích thước bằng trang vật lý
+			- khi thực hiện chương trình:
+				- nạp trang logic
+				- xây bảng quản lý trang
+				- mỗi phần tử pcb ứng với một trang:
+					- cho biết trang vật lý chứa trang logic tương ứng
+			- địa chỉ => số hiệu trang + offset
+			- ưu
+				- tăng tốc độ(ghép 2 số với nhau thay vì cộng như phân đoạn)
+				- không tồn tại phân đoạn ngoài
+				- hệ số song song cao
+				- ==dễ dàng bảo vệ
+				- ==cho phép sử dụng chung==
+			- nhược:
+				- phân đoạn trong
+				- cần hỗ trợ phần cứng
+		- # Kết hợp phân đoạn phân trang
+		- chương trình biên tập như phân đoạn
+		- tạo ra bảng quản lý đoạn
+		- mỗi đoạn biên tập riêng theo chế độ phân trang
+			- => mỗi đoạn có một bảng trang riêng
+		- chỉ cần <s,f> để tính địa chỉ.
+			- f tách được ra thành 2 số
+			- s chỉ số đoạn
+	- # bộ nhớ ảo
+		- thực hiện theo phân trang
+			- mỗi trang giờ có thêm một bit flag đánh dấu trong ram hay không
+			- nếu cần mà không có ==(lỗi trang)==
+			- ==các chiến lược đổi trang==
+				- ==fifo
+					- Hiệu quảkhi chương trình có cấu trúc tuyến tính. 
+					- Kém hiệu
+						quả khi chương trình theo nguyên tắc lập trình cấu trúc
+					- Đơn giản dễthực hiện
+						Dùng hàng đợi lưu các trang của chương trình trong bộnhớ
+						Chèn ởcuối hàng, Thay thếtrang ởđầu hàng
+						Tăng trang vật lý, không đảm bảo giảm sốlần gặp lỗi trang
+						Dãy truy nhập: 1 2 3 4 1 2 5 1 2 3 4 5
+						3 frames: 9 lỗi trang; 4 frames: 10 lỗi trang
+				- ==opt
+					- ít lỗi trang nhất
+					- (khó dự báo diễn biến)
+				- ==lru
+- ch5 quản lý hệ thống file				
+	- các thuộc tính file
+		- tên
+		- định danh 
+		- kiểu
+		- vị trí
+		- kích thước
+		- permissions
+		- thời gian
+		- => được lưu trong bản ghi file
+			- Các bản ghi file được lưu giữ trong Thư mục file
+				- Kích thước có thể đạt tới Megabytes
+				- Thường được lữu trữ trên thiết bị nhớ ngoài
+				- Được đưa từng phần vào bộ nhớ khi cần thiết
+				- để tìm liệt kê file nhanh hơn, đổi tên file, quản lý protection dễ hơn
+	- impleent các thao tác:
+		- tạo file: chọn một vùng trống
+		- ghi file: (tên, data)sử dụng con trỏ ghi để biết ghi vào vị trí nào trong file
+		- đọc file: (tên) dùng tên tìm vị trí file, ghi kết quả vào buffer nào đó
+		- xóa file: (tên) tự tìm tên + size rồi đánh dấu là ghi đè được
+		- thay đổi vị trí, thu gọn: duyệt tìm phần trống rồi đổi.
+		- append
+		- đổi tên, thay đổi thuộc tính
+		- ==đóng/mở file==
+			- mở file => đưa vào danh sách file đang mở (đỡ mất thời gian duyệt tất cả các file trên hệ thống)
+			- đóng file => bỏ khỏi danh sách file mở
+	- hệ thống file:
+		- # phân vùng:
+		- đĩa được chia làm nhiều phân vùng, tách biệt mỗi partition có thể chứa HĐH riêng
+		- ==thư mục==
+			- một mức: tất cả file nằm trong thư mục
+			- 2 mức: mỗi người dùng một thư mục riêng
+			- cấu trúc cây: như linux bây giờ
+			- dùng chung: các người dùng có thể link file riêng của họ đến cùng một file nguồn
+			- ==cài đặt thư mục:
+				- danh sách tuyến tính với các con trỏ đến file
+					- muốn thao tác phải duyệt qua hết
+				- bảng băm:
+					- cần tìm hàm băm, có file mới là phải băm lại
+					- hash collision
+				- => kết hợp bảng băm, hash collision thì dùng danh sách tuyến tính
+		- các biện pháp phân phối vùng lưu trữ (tức là vùng đang chứa dữ liệu trên SSD, HDD)
+			- ==phân phối liên tục
+				- file đc phân phối các khối nhớ liên kết nhau
+				- lựa chọn phần trống khi có file mới?
+					- first fit, worse fit, best fir
+					- => phân đoạn ngoài
+					- => khó tăng kích thước file
+			- ==phân phối liên kếtz
+				- file được tổ chức theo các khối như danh sách liên kết
+				- chỉ hiệu quả cho file truy cập tuàn tự
+				- để truy cập khối thứ n vượt qua n-1 khối
+				- con trỏ lỗi => mất file
+				- áp dụng: FAT
+			- ==phân phối chỉ mục
+				- nguyên tắc: mỗi file có một khối lưu vị trí tất cả các khối
+				- không gây phân đoạn ngoài
+				- cho phép truy nhập trực tiếp
+				- cần dùng đến các khối
+				- cần liên kết các khối chỉ mục
+		- các biện pháp quản lý vùng lưu trữ tự do (tức là các vùng không lưu gì trong SSD HDD)
+			- ==bit vector
+				- mỗi block thể hiện bởi 1 bit
+				- dễ dàng tìm ra khối nhớ liên tục
+			- ==DSLK
+				- block trống tao thành một DSLK
+				- không hiệu quả khi duyệt danh sách
+			- ==Nhóm
+				- lưu hết các khối tự do trong một khối tự do 
+				- tìm vùng nhớ tự do nhanh
+			- ==bộ đếm
+				- lưu địa chỉ khối nhớ tự do đầu tiên và kích thước vùng nhớ liên tục trong DS quản lý vùng trống
+	- tổ chức thông tin trên đĩa từ
+		- cấu trúc vật lý của đĩa:
+			- ==Header: 0/1 - mặt đĩa
+			- ==Track: mấy cái vòng đồng tâm
+			- ==Sector: mấy vùng trên mấy cái vòng đồng tâm
+			- ==Sector là cái chính để làm việc
+				- xác định qua tọa độ 3 chiều
+				- hoặc qua vị trí tương đối với sector gốc (chỉ cần 1 số)
+			- sử dụng ngắt 13h
+		- cấu trúc logic của đĩa
+			- nhiều phân vùng
+				- gồm cylinder liên tiếp nhau
+				- có hệ thống file riêng
+				- có thể chứa HĐH riêng
+			- trước các phân vùng là sector bị che
+			- ==sector đầu tiên là MBR (trong gpt thì chỉ tồn tại để backward compat)
+				- gồm 3 phần: chương trình nhận biết
+					- đọc bảng phân chương
+					- đọc và thực hiện sector đầu tiên của chương tình tích cực
+				- bảng phân chương(64 bytes)
+					- gồm 4 phần tử 
+					- ==mỗi phần tử chứa thông tin một vùng
+						- vị trí kích thước, hệ thống chiếm giữ
+						- ==cấu trúc cụ thể xem bảng:
+						- ![[Pasted image 20260118065420.png]]
+					- chữ ký hệ thống (55AA)
+				- bảng phân chương mở rộng
+					- tạo thêm MBR với chữ ký mở rộng
+				- GPT 
+					- logical block addressing
+					- uefi
+					- LBA 0: Protective Master Boot Record
+					- LBA 1: Header GPT
+					- LBA 2→33: Bảng phân chương, chiếm 32 sector
+						Gồm 128 phần tử, mỗi phần tử128 byte
+					- Sử dụng 8 byte đểghi đia chỉ(LBA) đầu và cuối của phân vùng
+					- LBA 34 →. . .: Các phân vùng
+					- LBA -33 →-2 32 sector, backup cho bảng phân chương
+					- LBA -1 Sector cuối, backup cho Header GPT
+				- hệ thống file
+					- fat
+						- FAT12/16
+						- Số cluster lớn nhất FAT12: 212 −18; FAT16 : 216 −18
+						- K/thước max: FAT12: 32MB; FAT16: 2GB/4GB (32K/64K Cluster)
+						- FAT32
+						- Chỉ dùng 28 bit ⇒Số cluster lớn nhất 228 −18
+						- K/thước max: 2TB/8TB/16TB (8KB/32KB/64KB Cluster)
+					- ntfs
+					- ext3 ![[Pasted image 20260118081428.png]]
+phân biệt fat16 fat32 : fat32 phải nhảy xa hơn
+### Bảng so sánh các giải thuật đồng bộ hóa
+
+|**Giải thuật**|**Cơ chế / Implement (Chi tiết)**|**Loại trừ tương hỗ (MutEx)**|**Tiến triển (Progress)**|**Chờ đợi hữu hạn (Bounded Waiting)**|**Đánh giá / Vấn đề chính**|
+|---|---|---|---|---|---|
+|**Khóa trong**<br><br>  <br><br>_(Lock Variable)_|**Phần mềm (Thuần túy):**<br><br>  <br><br>Dùng biến `lock`.<br><br>  <br><br>`while(lock==1);`<br><br>  <br><br>`lock=1;` (Vào)<br><br>  <br><br>`lock=0;` (Ra)|❌<br><br>  <br><br>_(Sai)_|✅|✅|**Tệ nhất.**<br><br>  <br><br>Bị _Race Condition_ giữa lệnh kiểm tra và lệnh gán. Hai tiến trình có thể cùng thấy `lock=0` và cùng chui vào.|
+|**Test & Set**<br><br>  <br><br>_(TSL - Cơ bản)_|**Phần cứng (Lệnh máy):**<br><br>  <br><br>Dùng chỉ thị `TSL` (Test and Set Lock) để đọc & ghi `lock` trong 1 thao tác **nguyên tử**.<br><br>  <br><br>`while(TSL(&lock));`|✅<br><br>  <br><br>_(Đúng)_|✅|❌<br><br>  <br><br>_(Sai)_|**Gây Starvation (Đói).**<br><br>  <br><br>Dùng _Busy Waiting_ (quay vòng). Ai nhanh tay (CPU nhanh hơn) thì cướp được khóa. Không có hàng đợi, không có thứ tự.|
+|**T&S Mở rộng**<br><br>  <br><br>_(Extended TSL)_|**Phần cứng + Phần mềm:**<br><br>  <br><br>Dùng `TSL` + mảng `waiting[]`.<br><br>  <br><br>Khi ra khỏi vùng găng, tiến trình hiện tại **quét mảng waiting** để tìm người kế tiếp và trao khóa trực tiếp.|✅<br><br>  <br><br>_(Đúng)_|✅|✅<br><br>  <br><br>_(Đúng)_|**Hoàn hảo (về logic).**<br><br>  <br><br>Khắc phục điểm yếu của TSL thường bằng cách ép buộc tuân thủ thứ tự xoay vòng. Tuy nhiên cài đặt phức tạp hơn.|
+|**Dekker**|**Phần mềm (Cổ điển):**<br><br>  <br><br>Kết hợp biến `turn` (lượt ai) và `flag[]` (ý muốn vào).<br><br>  <br><br>Khi cả 2 muốn vào, kẻ không phải lượt mình sẽ nhường (polite).|✅<br><br>  <br><br>_(Đúng)_|✅|✅<br><br>  <br><br>_(Đúng)_|**Giải pháp phần mềm đầu tiên đúng.**<br><br>  <br><br>Nhưng code rất phức tạp, khó hiểu và khó mở rộng cho $N$ tiến trình (thường chỉ dùng cho 2).|
+|**Semaphore**|**Hệ điều hành (OS):**<br><br>  <br><br>Biến nguyên `S` + Hàng đợi (Queue).<br><br>  <br><br>Dùng `Wait()` (giảm S) và `Signal()` (tăng S).<br><br>  <br><br>Không quay vòng mà **Block (Ngủ)**.|✅<br><br>  <br><br>_(Đúng)_|✅|✅<br><br>  <br><br>_(Đúng)_|**Tiêu chuẩn công nghiệp.**<br><br>  <br><br>Hiệu quả vì không lãng phí CPU (không busy wait). Nếu hàng đợi là FIFO thì đảm bảo _Bounded Waiting_.|
