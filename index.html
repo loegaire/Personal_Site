@@ -18,8 +18,8 @@
 <body>
   <header>
     <div class="menu-container">
-      <div class="menu-toggle">☰</div>
-      <nav class="side-menu">
+      <button class="menu-toggle" type="button" aria-label="Open side menu" aria-controls="sideMenu" aria-expanded="false">☰</button>
+      <nav class="side-menu" id="sideMenu" aria-hidden="true">
         <section class="about">
           <div class="aboutHeader">
             <h2>About me</h2>
@@ -35,14 +35,26 @@
 
         <section class="projects">
           <h2>My stuff</h2>
-          <div class="ctfContainer">
-            <p class="ctfWriteUpsTitle"><i class="fa-solid fa-archive"></i> CTF writeups</p>
+          <div class="ctfContainer" id="ctfContainer">
+            <button
+              class="ctfWriteUpsTitle expanderToggle"
+              id="ctfToggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="writeupList"
+            ><i class="fa-solid fa-archive"></i> CTF writeups</button>
             <div class="ctfWriteUps" id="writeupList" aria-live="polite">
               <p class="writeupLoading">Loading writeups...</p>
             </div>
           </div>
-          <div class="researchContainer">
-            <p class="researchTitle"><i class="fa-solid fa-pen-nib"></i> Academic projects</p>
+          <div class="researchContainer" id="researchContainer">
+            <button
+              class="researchTitle expanderToggle"
+              id="researchToggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="researchList"
+            ><i class="fa-solid fa-pen-nib"></i> Academic projects</button>
             <div class="researchPosts" id="researchList" aria-live="polite">
               <p class="writeupLoading">Loading projects...</p>
             </div>

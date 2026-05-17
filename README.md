@@ -61,6 +61,23 @@ If frontmatter is missing, the build script infers:
 - `title` from the first `# Heading`
 - `summary` from the first paragraph
 
+### Automatic metadata (plug-and-play)
+
+When you add a new markdown file and run the build script, metadata is generated automatically:
+
+- `readTime`: estimated from word count
+- `wordCount`: extracted from rendered content
+- `excerpt`: cleaned plain-text preview for feed cards
+- `previewImage`:
+	- first image found in the markdown content, including Obsidian embeds like `![[image.png]]`
+	- otherwise matched from same-folder files with a similar basename
+- `tags`:
+	- section tag is always added automatically (`ctf` for `content/writeups`, `research` for `content/research`)
+	- inferred topic tags are added from slug/content keywords
+	- frontmatter `tags` are still supported and merged
+
+You can still override any auto field in frontmatter (`title`, `summary`, `excerpt`, `previewImage`, `readTime`, `tags`, `order`).
+
 ### Automatic folder-based tags
 
 - Any markdown found in `content/writeups/` automatically gets the `ctf` tag

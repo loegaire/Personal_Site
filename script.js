@@ -1,5 +1,8 @@
 const body = document.body;
 const aboutSection = document.querySelector('.about');
+const menuContainer = document.querySelector('.menu-container');
+const menuToggle = document.querySelector('.menu-toggle');
+const sideMenu = document.getElementById('sideMenu');
 
 const audio = document.getElementById('my-audio');
 const playBtn = document.getElementById('play');
@@ -67,6 +70,10 @@ if (audio && playBtn && nextBtn && prevBtn && progress && source) {
 
 const writeupList = document.getElementById('writeupList');
 const researchList = document.getElementById('researchList');
+const ctfContainer = document.getElementById('ctfContainer');
+const researchContainer = document.getElementById('researchContainer');
+const ctfToggle = document.getElementById('ctfToggle');
+const researchToggle = document.getElementById('researchToggle');
 const feedPanel = document.querySelector('.feedPanel');
 const feedList = document.getElementById('feedList');
 const feedTitle = document.getElementById('feedTitle');
@@ -88,6 +95,79 @@ const sortedResearch = [...researchPosts].sort((left, right) => {
   return (left.title || '').localeCompare(right.title || '');
 });
 
+function setExpanderState(container, toggleButton, isExpanded) {
+  if (!container || !toggleButton) {
+    return;
+  }
+  container.classList.toggle('is-open', isExpanded);
+  toggleButton.setAttribute('aria-expanded', String(isExpanded));
+}
+
+function closeExpanders() {
+  setExpanderState(ctfContainer, ctfToggle, false);
+  setExpanderState(researchContainer, researchToggle, false);
+}
+
+function setupExpanders() {
+  const expanderPairs = [
+    [ctfContainer, ctfToggle],
+    [researchContainer, researchToggle],
+  ];
+
+  expanderPairs.forEach(([container, toggleButton]) => {
+    if (!container || !toggleButton) {
+      return;
+    }
+
+    container.dataset.pinnedOpen = 'false';
+
+    toggleButton.addEventListener('click', () => {
+      const nextPinnedState = container.dataset.pinnedOpen !== 'true';
+
+      if (nextPinnedState) {
+        expanderPairs.forEach(([otherContainer, otherButton]) => {
+          if (otherContainer === container || !otherContainer || !otherButton) {
+            return;
+          }
+          otherContainer.dataset.pinnedOpen = 'false';
+          setExpanderState(otherContainer, otherButton, false);
+        });
+      }
+
+      container.dataset.pinnedOpen = String(nextPinnedState);
+      setExpanderState(container, toggleButton, nextPinnedState);
+    });
+
+    container.addEventListener('mouseenter', () => {
+      setExpanderState(container, toggleButton, true);
+    });
+
+    container.addEventListener('mouseleave', () => {
+      if (container.dataset.pinnedOpen === 'true') {
+        return;
+      }
+      if (container.contains(document.activeElement)) {
+        return;
+      }
+      setExpanderState(container, toggleButton, false);
+    });
+
+    container.addEventListener('focusin', () => {
+      setExpanderState(container, toggleButton, true);
+    });
+
+    container.addEventListener('focusout', (event) => {
+      if (container.dataset.pinnedOpen === 'true') {
+        return;
+      }
+      if (container.contains(event.relatedTarget)) {
+        return;
+      }
+      setExpanderState(container, toggleButton, false);
+    });
+  });
+}
+
 function setFeedLandingState() {
   if (feedTitle) {
     feedTitle.textContent = 'Newest writeups';
@@ -100,6 +180,36 @@ function setFeedLandingState() {
   }
   feedPanel?.classList.remove('is-reading');
   body.classList.remove('feed-reading');
+}
+
+function setMenuOpenState(isOpen) {
+  if (!menuToggle || !sideMenu) {
+    return;
+  }
+  body.classList.toggle('menu-open', isOpen);
+  menuToggle.setAttribute('aria-expanded', String(isOpen));
+  sideMenu.setAttribute('aria-hidden', String(!isOpen));
+}
+
+function setupSideMenu() {
+  if (!menuToggle || !menuContainer) {
+    return;
+  }
+
+  menuToggle.addEventListener('click', () => {
+    const nextState = !body.classList.contains('menu-open');
+    setMenuOpenState(nextState);
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!body.classList.contains('menu-open')) {
+      return;
+    }
+    if (menuContainer.contains(event.target)) {
+      return;
+    }
+    setMenuOpenState(false);
+  });
 }
 
 function showFeedList() {
@@ -120,6 +230,13 @@ function renderTags(tags = []) {
       ${tags.map((tag) => `<span class="feedTag">${tag}</span>`).join('')}
     </div>
   `;
+}
+
+function renderMeta(writeup) {
+  if (!writeup?.readTime) {
+    return '';
+  }
+  return `<span class="feedReadTime"><i class="fa-regular fa-clock"></i> ${writeup.readTime} min read</span>`;
 }
 
 function renderWriteupButtons(items) {
@@ -183,7 +300,7 @@ function renderFeedCards(items) {
         ? `<img class="feedCardImage" src="${writeup.previewImage}" alt="${writeup.title}">`
         : `<div class="feedCardIcon"><i class="fa-regular fa-newspaper"></i></div>`}
       <div class="feedCardBody">
-        ${renderTags(writeup.tags || [])}
+        <div class="feedMetaRow">${renderTags(writeup.tags || [])}${renderMeta(writeup)}</div>
         <div class="feedCardText">
           <h3>${writeup.title}</h3>
           <p>${writeup.excerpt || writeup.summary || ''}</p>
@@ -205,7 +322,7 @@ function renderWriteup(writeup) {
   const section = writeup.section || 'writeups';
   window.history.replaceState({}, '', `${window.location.pathname}?post=${encodeURIComponent(`${section}:${writeup.slug}`)}${window.location.hash}`);
   feedTitle.textContent = writeup.title;
-  feedSubtitle.innerHTML = renderTags(writeup.tags || []) || '<span class="feedSubtitleText">Markdown writeup</span>';
+  feedSubtitle.innerHTML = `${renderTags(writeup.tags || [])}${renderMeta(writeup)}` || '<span class="feedSubtitleText">Markdown writeup</span>';
   feedPanel?.classList.add('is-reading');
   body.classList.add('feed-reading');
   feedArticle.innerHTML = writeup.html || '<p>Could not load this writeup.</p>';
@@ -256,9 +373,15 @@ async function initWriteups() {
 feedBack?.addEventListener('click', showFeedList);
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeExpanders();
+    setMenuOpenState(false);
+  }
   if (event.key === 'Escape' && body.classList.contains('feed-reading')) {
     showFeedList();
   }
 });
 
+setupSideMenu();
+setupExpanders();
 void initWriteups();

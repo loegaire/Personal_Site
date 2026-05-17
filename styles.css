@@ -3,6 +3,9 @@
   --bg-dark: rgba(34, 42, 54, 0.8);
   --main-contrast: #222936;
   --menu-hover-band: 4.2rem;
+  --feed-shell: rgba(8, 12, 19, 0.88);
+  --feed-inner: rgba(150, 158, 171, 0.16);
+  --feed-item: rgba(178, 187, 200, 0.18);
 
 }
 h1 {
@@ -45,7 +48,7 @@ section.about {
   margin: 0;
   color: var(--main-color);
   text-align: left;
-  background-color: var(--bg-dark);
+  background-color: rgba(18, 24, 34, 0.82);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   padding: 1rem;   border-radius: 8px;   width: auto;
@@ -65,7 +68,7 @@ section.projects {
   -webkit-backdrop-filter: blur(10px);
   color: var(--main-color);
   text-align: left;
-  background-color: var(--bg-dark);
+  background-color: rgba(18, 24, 34, 0.82);
   padding: 1rem;
   border-radius: 8px;
   display: block;
@@ -114,17 +117,20 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.62);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
 }
 
 .menu-toggle {
+  border: 1px solid rgba(242, 137, 116, 0.25);
   position: fixed;
   left: 0.35rem;
   top: 1rem;
   background-color: rgba(0, 0, 0, 0.86);
   color: #f2f2f2;
+  font-family: inherit;
+  font-size: 1.05rem;
   padding: 1rem 0.95rem;
   cursor: pointer;
   z-index: 30;
@@ -133,24 +139,39 @@ body {
 .side-menu {
   position: fixed;
   top: 0;
-  left: var(--menu-hover-band);
-  transform: translateX(-100%);
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(-100% - 1rem));
+  visibility: hidden;
   width: calc(33.333vw - var(--menu-hover-band));
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.82);
-  backdrop-filter: blur(7px);
+  background-color: rgba(198, 204, 215, 0.32);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
   overflow-y: auto;
-  padding: 5rem 1rem 1rem;
-  transition: transform 0.22s ease;
+  box-sizing: border-box;
+  padding: 5rem 1rem 2rem;
+  transition: transform 0.22s ease, opacity 0.2s ease, visibility 0.2s ease;
   z-index: 20;
 }
 
 /* Slide in on hover over menu-toggle or side-menu itself */
 .menu-container:hover .side-menu {
-  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(var(--menu-hover-band));
+  visibility: visible;
+}
+
+body.menu-open .side-menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(var(--menu-hover-band));
+  visibility: visible;
 }
 audio {
   display: none;
@@ -199,16 +220,33 @@ audio {
   display: flex;
   gap: 0.65rem;
 }
+.expanderToggle {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: var(--main-color);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 1rem;
+  gap: 0.45rem;
+  padding: 0;
+  text-align: left;
+}
 .ctfWriteUps,
 .researchPosts {
   padding-left: 3rem;
+  padding-bottom: 1.25rem;
   flex-direction: column;
   display: flex;
   gap: 0.15rem;
   max-height: 0rem;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   transition: max-height 0.12s ease-out;
+}
+
+.researchContainer {
+  padding-bottom: 1rem;
 }
 .writeupTrigger {
   align-items: flex-start;
@@ -217,7 +255,7 @@ audio {
   border-left: var(--main-contrast) 2px solid;
   border-radius: 0;
   border-top: var(--main-contrast) 2px solid;
-  color: #222;
+  color: #f8d6cd;
   cursor: pointer;
   display: flex;
   font-size: 1rem;
@@ -234,7 +272,7 @@ audio {
   border-left: var(--main-contrast) 2px solid;
   border-radius: 0;
   border-top: var(--main-contrast) 2px solid;
-  color: #222;
+  color: #f8d6cd;
   cursor: pointer;
   display: flex;
   font-size: 1rem;
@@ -263,17 +301,33 @@ audio {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   margin-top: 0.4rem;
 }
+
+.menu-toggle:focus-visible,
+.expanderToggle:focus-visible,
+.writeupTrigger:focus-visible,
+.projectTrigger:focus-visible,
+.feedCard:focus-visible,
+.feedBack:focus-visible,
+.audio-controls button:focus-visible,
+.audio-controls input[type="range"]:focus-visible,
+.side-menu a:focus-visible {
+  outline: 2px solid var(--main-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(17, 24, 35, 0.72), 0 0 12px rgba(242, 137, 116, 0.55);
+}
 .feedPanel {
-  background-color: var(--bg-dark);
+  background-color: var(--feed-shell);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(242, 137, 116, 0.22);
   border-radius: 8px;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
   color: var(--main-color);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  height: calc(100vh - 5.5rem);
   margin: 1rem 0 0;
-  min-height: calc(100vh - 5.5rem);
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -327,6 +381,9 @@ audio {
   min-width: 0;
 }
 .feedList {
+  background: var(--feed-inner);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   grid-column: 1;
   grid-row: 2;
   display: flex;
@@ -337,42 +394,68 @@ audio {
   padding: 1.25rem;
 }
 .feedCard {
-  background: rgba(255, 255, 255, 0.04);
+  animation: feedPulse 2.8s ease-in-out infinite;
+  background: var(--feed-item);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
   border: 1px solid rgba(242, 137, 116, 0.18);
   border-radius: 1rem;
+  box-shadow: 0 0 0 rgba(242, 137, 116, 0);
   color: inherit;
   cursor: pointer;
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(5rem, 14rem) minmax(0, 1fr);
-  overflow: hidden;
+  overflow: visible;
   padding: 0.95rem;
   text-align: left;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease,
+              box-shadow 0.3s ease, transform 0.3s ease;
+}
+.feedCard:hover {
+  animation-play-state: paused;
+  background: var(--main-color);
+  border-color: var(--main-color);
+  box-shadow: 0 0 10px rgba(242, 137, 116, 0.42), 0 0 20px rgba(242, 137, 116, 0.22);
+  color: #111823;
+  transform: translateY(-2px);
 }
 .feedCardIcon {
   align-items: center;
-  background: rgba(10, 20, 34, 0.85);
+  background: rgba(232, 236, 244, 0.2);
+  border: 1px solid rgba(242, 137, 116, 0.28);
   border-radius: 0.85rem;
   color: rgba(242, 137, 116, 0.9);
   display: flex;
   font-size: 1.75rem;
   justify-content: center;
   min-height: 7rem;
+  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 .feedCardImage {
-  background: #111823;
+  background: rgba(232, 236, 244, 0.18);
+  border: 1px solid rgba(242, 137, 116, 0.28);
   display: block;
   border-radius: 0.85rem;
-  height: 100%;
+  height: auto;
   min-height: 8.5rem;
   object-fit: cover;
   width: 100%;
+  transition: filter 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 .feedCardBody {
   align-content: start;
+  align-self: start;
   display: grid;
   gap: 0.7rem;
   min-width: 0;
+  padding-bottom: 0.2rem;
+}
+.feedMetaRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.6rem;
 }
 .feedCardText {
   display: grid;
@@ -383,12 +466,19 @@ audio {
   color: #ffd5cc;
   line-height: 1.3;
   margin: 0;
+  transition: color 0.3s ease;
 }
 .feedCardBody p {
   color: #f4efed;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-clamp: 3;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+  overflow: hidden;
   line-height: 1.55;
   margin: 0;
+  transition: color 0.3s ease;
 }
 .feedTags {
   display: flex;
@@ -396,7 +486,7 @@ audio {
   gap: 0.45rem;
 }
 .feedTag {
-  background: rgba(242, 137, 116, 0.08);
+  background: rgba(232, 236, 244, 0.18);
   border: 1px solid rgba(242, 137, 116, 0.25);
   border-radius: 0.2rem;
   color: var(--main-color);
@@ -404,8 +494,38 @@ audio {
   font-size: 0.7rem;
   letter-spacing: 0.03em;
   padding: 0.18rem 0.45rem;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease,
+              box-shadow 0.25s ease;
+}
+.feedTag:hover {
+  background: var(--main-color);
+  border-color: #111823;
+  box-shadow: 0 0 10px rgba(242, 137, 116, 0.45);
+  color: #111823;
+}
+.feedReadTime {
+  align-items: center;
+  background: rgba(17, 24, 35, 0.28);
+  border: 1px solid rgba(242, 137, 116, 0.25);
+  border-radius: 0.25rem;
+  color: #f8d6cd;
+  display: inline-flex;
+  font-size: 0.72rem;
+  gap: 0.35rem;
+  letter-spacing: 0.02em;
+  padding: 0.18rem 0.45rem;
+}
+
+.feedCard:hover .feedReadTime {
+  background: #111823;
+  border-color: #111823;
+  color: var(--main-color);
 }
 .feedSubtitle .feedTags {
+  margin-top: 0.4rem;
+}
+
+.feedSubtitle .feedReadTime {
   margin-top: 0.4rem;
 }
 .feedSubtitleText {
@@ -426,6 +546,41 @@ audio {
   padding-top: 0.5rem;
   position: relative;
   z-index: 2;
+}
+
+.feedCard:hover .feedCardIcon {
+  background: #f4efed;
+  border-color: #111823;
+  box-shadow: 0 0 12px rgba(242, 137, 116, 0.55);
+  color: #111823;
+}
+
+.feedCard:hover .feedCardImage {
+  border-color: #111823;
+  box-shadow: 0 0 14px rgba(242, 137, 116, 0.5);
+  filter: brightness(1.08) contrast(1.1) saturate(1.12);
+}
+
+.feedCard:hover .feedCardBody h3,
+.feedCard:hover .feedCardBody p {
+  color: #111823;
+}
+
+.feedCard:hover .feedTag {
+  background: #111823;
+  border-color: #111823;
+  box-shadow: 0 0 9px rgba(17, 24, 35, 0.5);
+  color: var(--main-color);
+}
+
+@keyframes feedPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(242, 137, 116, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(242, 137, 116, 0.12);
+  }
 }
 .feedHeroImage {
   border-radius: 1rem;
@@ -478,11 +633,99 @@ audio {
 }
 
 .projects .ctfContainer:hover .ctfWriteUps {
-  max-height: 200rem;
+  max-height: min(38vh, 24rem);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .projects .researchContainer:hover .researchPosts {
-  max-height: 200rem;
+  max-height: min(46vh, 30rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.projects .ctfContainer.is-open .ctfWriteUps,
+.projects .ctfContainer:focus-within .ctfWriteUps {
+  max-height: min(38vh, 24rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.projects .researchContainer.is-open .researchPosts,
+.projects .researchContainer:focus-within .researchPosts {
+  max-height: min(46vh, 30rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.feedList,
+.feedArticle,
+.side-menu,
+.ctfWriteUps,
+.researchPosts {
+  scrollbar-color: rgba(242, 137, 116, 0.75) rgba(17, 24, 35, 0.4);
+  scrollbar-width: thin;
+}
+
+.feedList::-webkit-scrollbar,
+.feedArticle::-webkit-scrollbar,
+.side-menu::-webkit-scrollbar,
+.ctfWriteUps::-webkit-scrollbar,
+.researchPosts::-webkit-scrollbar {
+  height: 0.6rem;
+  width: 0.6rem;
+}
+
+.feedList::-webkit-scrollbar-track,
+.feedArticle::-webkit-scrollbar-track,
+.side-menu::-webkit-scrollbar-track,
+.ctfWriteUps::-webkit-scrollbar-track,
+.researchPosts::-webkit-scrollbar-track {
+  background: rgba(17, 24, 35, 0.42);
+  border-radius: 999px;
+}
+
+.feedList::-webkit-scrollbar-thumb,
+.feedArticle::-webkit-scrollbar-thumb,
+.side-menu::-webkit-scrollbar-thumb,
+.ctfWriteUps::-webkit-scrollbar-thumb,
+.researchPosts::-webkit-scrollbar-thumb {
+  background: rgba(242, 137, 116, 0.74);
+  border: 2px solid rgba(17, 24, 35, 0.25);
+  border-radius: 999px;
+}
+
+.feedList::-webkit-scrollbar-thumb:hover,
+.feedArticle::-webkit-scrollbar-thumb:hover,
+.side-menu::-webkit-scrollbar-thumb:hover,
+.ctfWriteUps::-webkit-scrollbar-thumb:hover,
+.researchPosts::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 168, 149, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  .feedCard,
+  .feedTag,
+  .feedCardIcon,
+  .feedCardImage,
+  .audio-controls,
+  .audio-controls button,
+  .side-menu,
+  .ctfWriteUps,
+  .researchPosts,
+  section.about *,
+  section.projects * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .feedCard:hover {
+    transform: none;
+  }
 }
 
 .feedPanel:not(.is-reading) .feedArticle,
@@ -515,9 +758,21 @@ body:not(.feed-reading) .feedBack {
     min-height: auto;
   }
 
+  .feedPanel {
+    height: auto;
+    max-height: none;
+  }
+
   .side-menu {
-    left: 2.9rem;
     width: calc(90vw - 2.9rem);
+  }
+
+  .menu-container:hover .side-menu {
+    transform: translateX(2.9rem);
+  }
+
+  body.menu-open .side-menu {
+    transform: translateX(2.9rem);
   }
 
   .aboutHeader {
@@ -527,7 +782,8 @@ body:not(.feed-reading) .feedBack {
 
   .ctfWriteUps,
   .researchPosts,
-  section.projects p {
+  section.projects p,
+  .expanderToggle {
     padding-left: 0;
     max-height: none;
   }
