@@ -1,0 +1,38 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { sortPosts } from '../../utils/content';
+
+const posts = sortPosts(await getCollection('research'));
+---
+
+<BaseLayout
+  title="Research — Field Archive"
+  description="Academic and technical research notes on cryptography, operating systems, machine learning, and security."
+>
+  <header class="page-hero page-hero--research">
+    <div>
+      <p class="eyebrow">Theory room / long horizon</p>
+      <h1>RESEARCH<br /><span>NOTES.</span></h1>
+    </div>
+    <p>
+      Cryptography, operating systems, machine learning, and foundations that make
+      the next practical investigation less mysterious.
+    </p>
+    <div class="page-hero__count"><strong>{posts.length}</strong><span>living<br />documents</span></div>
+  </header>
+
+  <section class="section-shell research-index">
+    <div class="section-heading section-heading--split">
+      <div>
+        <p class="eyebrow">Academic shelf</p>
+        <h2>Notes & studies</h2>
+      </div>
+      <p>These are evolving explanations, not polished doctrine.</p>
+    </div>
+    <div class="featured-grid">
+      {posts.map((post, index) => <PostCard post={post} index={index} />)}
+    </div>
+  </section>
+</BaseLayout>

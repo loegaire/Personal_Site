@@ -1,122 +1,113 @@
-# Personal site
+# Field Archive
 
-## No local server needed
+Astro-powered personal archive for CTF writeups, working notes, and academic research.
 
-The site now works by opening [index.html](index.html) directly in the browser.
+## Content model
 
-- Open `index.html`
-- Click a writeup
-- The content is loaded from [content/writeups-data.js](content/writeups-data.js), so there is no runtime fetch dependency
+Astro content collections are the source of truth:
 
-## Writeup workflow
+- `content/writeups/` — upload/drop folder for new writeups
+- `src/content/writeups/imported/` — generated snapshot imported from `~/ctf`
+- `src/content/writeups/local/` — generated snapshot of the upload/drop folder
+- `src/content/research/` — academic and research Markdown
+- `src/content.config.ts` — collection schemas
+- `src/data/content-manifest.json` — source-to-route import receipt
+- `src/data/content-stats.json` — generated archive counts
+- `public/media/` — referenced images and PDF attachments
 
-Source files live in [content/writeups](content/writeups):
+There is only one CTF route template, `src/pages/ctf/[...slug].astro`, and one shared
+post UI, `src/layouts/PostLayout.astro`. Astro applies them to every Markdown entry
+and generates the individual static HTML URLs at build time. The old
+`window.WRITEUPS_DATA` bundle and browser-side Markdown rendering are no longer used.
 
-- put every writeup `.md` file directly in `content/writeups/`
-- put every writeup image directly in that same `content/writeups/` folder too
-- rebuild the offline bundle:
-	- `/home/thinh/proj/personal-site/.venv/bin/python tools/build_writeups.py`
+## Add a new writeup
 
-Optional auto-rebuild while editing, still without any server:
+Drop a Markdown file into `content/writeups/`:
 
-- `/home/thinh/proj/personal-site/.venv/bin/python tools/watch_writeups.py`
-
-Then just refresh `index.html` in the browser.
-
-## Research/blog workflow
-
-Source files for academic/research posts live in [content/research](content/research):
-
-- put every research/blog `.md` file directly in `content/research/`
-- put related images in that same `content/research/` folder
-- rebuild with the same command:
-	- `/home/thinh/proj/personal-site/.venv/bin/python tools/build_writeups.py`
-
-The sidebar now auto-indexes:
-
-- `CTF writeups` from `content/writeups`
-- `Academic projects` from `content/research`
-
-### Auto discovery
-
-- Every `.md` file directly inside `content/writeups/` is discovered automatically
-- Every `.md` file directly inside `content/research/` is discovered automatically
-- `content/writeups/index.json` is no longer needed
-- Optional YAML frontmatter is supported:
-
-```yaml
----
-title: My New Writeup
-summary: One-line description shown on the homepage.
-tags:
-	- pwn
-	- linux
-order: 5
----
+```text
+content/writeups/my-new-writeup.md
 ```
 
-If frontmatter is missing, the build script infers:
+Or use folders as categories:
 
-- `slug` from the filename
-- `title` from the first `# Heading`
-- `summary` from the first paragraph
+```text
+content/writeups/reverse/my-new-writeup.md
+content/writeups/pwn/heap-challenge.md
+content/writeups/crypto/rsa-challenge.md
+```
 
-### Automatic metadata (plug-and-play)
-
-When you add a new markdown file and run the build script, metadata is generated automatically:
-
-- `readTime`: estimated from word count
-- `wordCount`: extracted from rendered content
-- `excerpt`: cleaned plain-text preview for feed cards
-- `previewImage`:
-	- first image found in the markdown content, including Obsidian embeds like `![[image.png]]`
-	- otherwise matched from same-folder files with a similar basename
-- `tags`:
-	- section tag is always added automatically (`ctf` for `content/writeups`, `research` for `content/research`)
-	- inferred topic tags are added from slug/content keywords
-	- frontmatter `tags` are still supported and merged
-
-You can still override any auto field in frontmatter (`title`, `summary`, `excerpt`, `previewImage`, `readTime`, `tags`, `order`).
-
-### Automatic folder-based tags
-
-- Any markdown found in `content/writeups/` automatically gets the `ctf` tag
-- Any markdown found in `content/research/` automatically gets the `research` tag
-- Extra frontmatter tags are still supported and appended after these automatic tags
-
-### Obsidian-friendly layout
-
-Example:
-
-- `content/writeups/ductf-2025.md`
-- `content/writeups/ductf20251.png`
-- `content/writeups/ductf20252.png`
-
-Use normal relative Markdown image paths inside the note, for example:
+The file only needs a level-one heading and the original body:
 
 ```md
-![Screenshot](ductf20251.png)
+# My new writeup
+
+The challenge starts with...
 ```
 
-This matches the simple Obsidian pattern where notes and attachments live side-by-side in one folder.
+Then run:
 
-## Source of truth
+```bash
+npm run build
+```
 
-- Markdown source: [content/writeups](content/writeups)
-- Generated offline bundle: [content/writeups-data.js](content/writeups-data.js)
-- Build script: [tools/build_writeups.py](tools/build_writeups.py)
-- Watch script: [tools/watch_writeups.py](tools/watch_writeups.py)
+The preparation step infers metadata, preserves the Markdown body, and Astro generates
+the HTML page using the shared post UI. No Astro page or JavaScript entry needs to be
+created for an individual post. See `content/_writeup-template.md` for a copyable example.
 
-## Troubleshooting Python command mismatch
+## Import all local CTF notes
 
-If `python`/`p` points to a different interpreter, you may see errors like `ModuleNotFoundError: No module named 'markdown'`.
+```bash
+npm run import:content
+```
 
-- Recommended: run tooling with the project venv interpreter:
-	- `/home/thinh/proj/personal-site/.venv/bin/python tools/build_writeups.py`
-- Or install dependencies into your active interpreter:
-	- `python -m pip install -r requirements.txt`
+By default the importer reads `~/ctf`. Override it when needed:
 
-## Direct links
+```bash
+CTF_ROOT=/path/to/ctf npm run import:content
+```
 
-- `index.html?writeup=picoctf-2025`
-- `index.html?writeup=ductf-2025`
+The importer:
+
+- finds authored `notes*.md`, `*writeup*.md`, `wu.md`, `report.md`, and solution documents;
+- imports the direct Markdown files in `~/ctf/writeups`;
+- excludes virtual environments, dependencies, cloned package documentation, scratch trees, generated skill corpora, and oversized analysis dumps;
+- keeps each original Markdown body;
+- copies referenced images and preserved PDF attachments;
+- preserves local paths, commands, usernames, and other writeup evidence;
+- redacts obvious CTF instance tokens and cloud credentials;
+- infers event, discipline, status, dates, and reading time for the archive UI;
+- deduplicates byte-identical documents.
+
+The same preparation command processes new uploads from `content/writeups`. If `~/ctf`
+does not exist (for example, in hosted CI), the checked-in imported snapshot is preserved
+and only the upload folder is refreshed.
+
+## Develop
+
+```bash
+npm install
+npm run dev
+```
+
+The configured project base is `/Personal_Site`, matching the GitHub repository name.
+
+## Validate and build
+
+```bash
+npm run check
+npm run build
+npm run preview
+```
+
+The static build produces:
+
+- homepage and about page;
+- searchable/filterable archive;
+- one static route per CTF/research Markdown document;
+- per-article table of contents, reading progress, and focus mode;
+- RSS feed;
+- sitemap.
+
+## Design
+
+The interface uses an original “field archive” identity: aggressive editorial geometry, oversized type, cut-paper transitions, engraved/tactile panels, warm ornament, and high-contrast interaction feedback. It does not ship artwork, logos, fonts, or other assets from Persona 5 Royal or Hades.

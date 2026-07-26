@@ -1,0 +1,249 @@
+---
+import { withBase } from '../utils/content';
+
+const tracks = [
+  {
+    title: 'Lukewarm',
+    artist: 'Tota',
+    src: withBase('/music/lukewarm.mp3'),
+  },
+  {
+    title: 'Rolling Like A Ball',
+    artist: 'Ludovico Einaudi',
+    src: withBase('/music/rolling-like-a-ball.mp3'),
+  },
+  {
+    title: 'ラグトレイン',
+    artist: '稲葉曇',
+    src: withBase('/music/lagtrain.mp3'),
+  },
+];
+---
+
+<section
+  class="music-player"
+  data-music-player
+  data-tracks={JSON.stringify(tracks)}
+  data-open="false"
+  aria-label="Site soundtrack"
+>
+  <div class="music-player__bar">
+    <button class="music-player__play" type="button" data-music-play aria-label="Play soundtrack">
+      <svg class="music-player__play-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m8 5 11 7-11 7Z"></path>
+      </svg>
+      <svg class="music-player__pause-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 5h4v14H7zm6 0h4v14h-4z"></path>
+      </svg>
+    </button>
+
+    <button class="music-player__summary" type="button" data-music-expand aria-expanded="false">
+      <span class="music-player__pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span>
+        <small>Now playing</small>
+        <strong data-music-title>{tracks[0].title}</strong>
+      </span>
+    </button>
+
+    <button class="music-player__expand" type="button" data-music-expand aria-label="Expand soundtrack controls" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"></path></svg>
+    </button>
+  </div>
+
+  <div class="music-player__deck" data-music-deck>
+    <div class="music-player__track">
+      <span data-music-index>01 / 03</span>
+      <div>
+        <strong data-music-deck-title>{tracks[0].title}</strong>
+        <small data-music-artist>{tracks[0].artist}</small>
+      </div>
+    </div>
+
+    <label class="music-player__timeline">
+      <span class="sr-only">Track position</span>
+      <time data-music-current>0:00</time>
+      <input data-music-seek type="range" min="0" max="1000" value="0" />
+      <time data-music-duration>0:00</time>
+    </label>
+
+    <div class="music-player__controls">
+      <button type="button" data-music-previous aria-label="Previous track">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-13-9 6 9 6Z"></path></svg>
+      </button>
+      <button type="button" data-music-next aria-label="Next track">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M6 6l9 6-9 6Z"></path></svg>
+      </button>
+      <label class="music-player__volume">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4Zm12-1a4 4 0 0 1 0 6m2-9a8 8 0 0 1 0 12"></path></svg>
+        <span class="sr-only">Volume</span>
+        <input data-music-volume type="range" min="0" max="1" step="0.05" value="0.7" />
+      </label>
+    </div>
+  </div>
+
+  <audio data-music-audio src={tracks[0].src} preload="metadata"></audio>
+</section>
+
+<script>
+  interface Track {
+    title: string;
+    artist: string;
+    src: string;
+  }
+
+  interface PlayerState {
+    index: number;
+    time: number;
+    volume: number;
+    playing: boolean;
+  }
+
+  const player = document.querySelector<HTMLElement>('[data-music-player]');
+  const audio = player?.querySelector<HTMLAudioElement>('[data-music-audio]');
+  const playButton = player?.querySelector<HTMLButtonElement>('[data-music-play]');
+  const expandButtons = player?.querySelectorAll<HTMLButtonElement>('[data-music-expand]');
+  const title = player?.querySelector<HTMLElement>('[data-music-title]');
+  const deckTitle = player?.querySelector<HTMLElement>('[data-music-deck-title]');
+  const artist = player?.querySelector<HTMLElement>('[data-music-artist]');
+  const indexLabel = player?.querySelector<HTMLElement>('[data-music-index]');
+  const currentLabel = player?.querySelector<HTMLTimeElement>('[data-music-current]');
+  const durationLabel = player?.querySelector<HTMLTimeElement>('[data-music-duration]');
+  const seek = player?.querySelector<HTMLInputElement>('[data-music-seek]');
+  const volume = player?.querySelector<HTMLInputElement>('[data-music-volume]');
+  const previous = player?.querySelector<HTMLButtonElement>('[data-music-previous]');
+  const next = player?.querySelector<HTMLButtonElement>('[data-music-next]');
+  const storageKey = 'field-archive-player';
+  const tracks = JSON.parse(player?.dataset.tracks || '[]') as Track[];
+  let activeIndex = 0;
+  let requestedTime = 0;
+  let shouldResume = false;
+
+  const formatTime = (seconds: number) => {
+    if (!Number.isFinite(seconds)) return '0:00';
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+  };
+
+  const readState = (): PlayerState | null => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || 'null') as PlayerState | null;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeState = () => {
+    if (!audio) return;
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          index: activeIndex,
+          time: audio.currentTime || 0,
+          volume: audio.volume,
+          playing: !audio.paused,
+        } satisfies PlayerState),
+      );
+    } catch {
+      // Playback remains available when storage is disabled.
+    }
+  };
+
+  const syncPlayState = () => {
+    if (!player || !audio || !playButton) return;
+    const playing = !audio.paused;
+    player.dataset.playing = String(playing);
+    playButton.setAttribute('aria-label', playing ? 'Pause soundtrack' : 'Play soundtrack');
+  };
+
+  const loadTrack = (index: number, autoplay = false, time = 0) => {
+    if (!audio || !tracks.length) return;
+    activeIndex = (index + tracks.length) % tracks.length;
+    const track = tracks[activeIndex];
+    requestedTime = time;
+    shouldResume = autoplay;
+    audio.src = track.src;
+    if (title) title.textContent = track.title;
+    if (deckTitle) deckTitle.textContent = track.title;
+    if (artist) artist.textContent = track.artist;
+    if (indexLabel) {
+      indexLabel.textContent = `${String(activeIndex + 1).padStart(2, '0')} / ${String(tracks.length).padStart(2, '0')}`;
+    }
+    if (seek) seek.value = '0';
+    if (currentLabel) currentLabel.textContent = '0:00';
+    if (durationLabel) durationLabel.textContent = '0:00';
+    audio.load();
+  };
+
+  const saved = readState();
+  if (audio && saved) {
+    audio.volume = Math.min(1, Math.max(0, saved.volume));
+    if (volume) volume.value = String(audio.volume);
+    loadTrack(saved.index, saved.playing, saved.time);
+  } else if (audio) {
+    audio.volume = 0.7;
+    syncPlayState();
+  }
+
+  expandButtons?.forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!player) return;
+      const open = player.dataset.open !== 'true';
+      player.dataset.open = String(open);
+      expandButtons.forEach((control) => control.setAttribute('aria-expanded', String(open)));
+    });
+  });
+
+  playButton?.addEventListener('click', async () => {
+    if (!audio) return;
+    if (audio.paused) {
+      await audio.play();
+    } else {
+      audio.pause();
+    }
+  });
+
+  previous?.addEventListener('click', () => loadTrack(activeIndex - 1, !audio?.paused));
+  next?.addEventListener('click', () => loadTrack(activeIndex + 1, !audio?.paused));
+
+  seek?.addEventListener('input', () => {
+    if (!audio || !Number.isFinite(audio.duration)) return;
+    audio.currentTime = (Number(seek.value) / 1000) * audio.duration;
+  });
+
+  volume?.addEventListener('input', () => {
+    if (!audio) return;
+    audio.volume = Number(volume.value);
+    writeState();
+  });
+
+  audio?.addEventListener('loadedmetadata', async () => {
+    if (!audio) return;
+    if (requestedTime > 0 && requestedTime < audio.duration) audio.currentTime = requestedTime;
+    if (durationLabel) durationLabel.textContent = formatTime(audio.duration);
+    if (shouldResume) {
+      try {
+        await audio.play();
+      } catch {
+        shouldResume = false;
+      }
+    }
+    syncPlayState();
+  });
+
+  audio?.addEventListener('timeupdate', () => {
+    if (!audio) return;
+    if (currentLabel) currentLabel.textContent = formatTime(audio.currentTime);
+    if (seek && Number.isFinite(audio.duration) && audio.duration > 0) {
+      seek.value = String(Math.round((audio.currentTime / audio.duration) * 1000));
+    }
+  });
+  audio?.addEventListener('play', syncPlayState);
+  audio?.addEventListener('pause', () => {
+    syncPlayState();
+    writeState();
+  });
+  audio?.addEventListener('ended', () => loadTrack(activeIndex + 1, true));
+  window.addEventListener('beforeunload', writeState);
+</script>
+

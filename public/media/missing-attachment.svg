@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Missing source attachment</title>
+  <desc id="desc">The original note referenced an image that was not available during archive import.</desc>
+  <rect width="1200" height="675" fill="#18151c"/>
+  <path d="M70 80 1140 40l-28 575L40 640Z" fill="none" stroke="#ef3d2f" stroke-width="8"/>
+  <path d="m100 120 990 420M1080 100 120 570" stroke="#3c3035" stroke-width="2"/>
+  <text x="100" y="320" fill="#f3ead8" font-family="monospace" font-size="68" font-weight="700">ATTACHMENT / NOT FOUND</text>
+  <text x="104" y="380" fill="#e8a94e" font-family="monospace" font-size="24">SOURCE NOTE PRESERVED · ORIGINAL MEDIA ABSENT</text>
+</svg>

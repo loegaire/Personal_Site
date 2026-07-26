@@ -1,0 +1,631 @@
+---
+title: "mikuprotect notes"
+description: "Confirmed facts Challenge: SEKAI 2026 mikuprotect, reverse engineering, hard. Remote: nc mikuprotect.chals.sekai.team 1337. Goal: for each round, server sends a protected sample and a target output string; p…"
+published: "2026-06-27"
+updated: "2026-06-28"
+event: "sekai2026"
+category: "Reverse Engineering"
+kind: "field-note"
+status: "solved"
+tags: ["Reverse Engineering", "sekai2026", "Field notes"]
+readingTime: 38
+wordCount: 8359
+featured: false
+sourcePath: "~/ctf/sekai2026/rev_miku_protect/notes.md"
+---
+
+# mikuprotect notes
+
+## Confirmed facts
+- Challenge: SEKAI 2026 `mikuprotect`, reverse engineering, hard.
+- Remote: `nc mikuprotect.chals.sekai.team 1337`.
+- Goal: for each round, server sends a protected sample and a target output string; patch only the VM pcode for the protected main so the binary prints the requested string. Execution flow and pcode lane must stay the same.
+- Workspace initially contains only `notes.md` plus directories: `artifacts/`, `dumps/`, `extracted/`, `scratch/`.
+- No `AGENTS.md` found under the parent workspace search.
+- Remote proof-of-work uses redpwnpow; cached solver at `~/.cache/redpwnpow/redpwnpow-v0.1.2-linux-amd64`.
+- Protocol after PoW:
+  - `sample_size=<n>`
+  - `sample_sha256=<hex>`
+  - `sample_raw:`
+  - exactly `<n>` raw PE bytes
+  - `round 01/10 target=b'...'\n`
+  - `hint: set rotors a=0x... b=0x... c=0x... d=0x...`
+  - prompt: `send raw mikuprotect.vmp.exe (<n> bytes):`
+- Captured clean round at `artifacts/round0/sample.exe`.
+- Captured sample size `2537984`, sha256 `8cdabd7766331683fa8e6a14e36c2cf9b318f4b28df3a102510523dbd05728fa`.
+- Round 1 target: `b'Miku, Miku, you can call me Miku\n'`.
+- Round 1 hint rotors: `a=0x2377cc20 b=0x1529f5c6 c=0xcf8f91b3 d=0x45f49618`.
+- Windows VM reachable via `ssh win11`, hostname `DESKTOP-HR7QOE6`, user `desktop-hr7qoe6\thinh`.
+- Windows VM has Python `C:\Python313\python.exe` and x64dbg at `C:\Tools\x64dbg\release\x64\x64dbg.exe` / Chocolatey shim.
+- Copied `artifacts/round1a/sample.exe` to `C:\Users\thinh\mikuprotect\sample.exe`.
+- Native Windows output matches Wine: `62 52 4e 45 03 1b 68 59 44 4e 09 10 56 54 50 10 4c 5a 4b 10 4c 5a 49 5c 0f 56 40 10 62 52 4e 45 ...`.
+- Runtime current output XOR target for first 32 chars is repeating little-endian mask `2f 3b 25 30` (`/%0`); final newline already matches.
+- Putchar import thunk in sample PE: VA `0x140002ce0`; IAT slot for `putchar`: RVA `0x3620`.
+- Wine/GDB breakpoint on resolved IAT target logs 33 putchar calls. First call: char `0x62`, return address `0x1401ecff1`.
+- Wine watchpoint on stack slot found first-output writer around VA `0x1400d9c9f`; fuzzing file offsets around `0xd7480` cleanly changes only the first output byte.
+- Clean fuzz candidates near first writer:
+  - `0xd747e` old `0x03` -> `0x02` gives first output `0x41`; `0x12`/`0x13` gives `0x4c`; `0x03` gives `0x62`.
+  - `0xd7479` old `0x48` -> `0x41`/`0x49` gives `0x50`; several values preserve `0x62`; `0x44`..`0x4f` gives `0xbc`.
+
+## Commands tried
+- `find .. -name AGENTS.md -o -name notes.md`
+- `find . -maxdepth 3 -type f -print | sort`
+- `file *`
+- `python3 scratch/capture_round.py`
+- `timeout 8 env WINEDEBUG=-all wine artifacts/round1a/sample.exe | xxd -g1`
+- `winedbg --gdb artifacts/round1a/sample.exe` with breakpoint on resolved `[base+0x3620]`.
+- `python3 scratch/fuzz_offsets.py artifacts/round1a/sample.exe 0xd7460 0xd74e0 --xor 1 --timeout 2`
+- `ssh win11 ...`, `scp artifacts/round1a/sample.exe win11:C:/Users/thinh/mikuprotect/sample.exe`
+- Patched `solve.py` PoW parsing to extract the `sh -s <challenge>` token and invoke cached redpwnpow as `redpwnpow-v0.1.2-linux-amd64 <challenge>`.
+
+## Current hypothesis
+- Need automate remote protocol: receive protected PE sample and target, identify VMProtect pcode bytes encoding output string, patch same-lane pcode bytes, upload patched binary.
+- The output bytes are not stored plainly; each output char is materialized by native VM handler code from pcode/state. Patch likely should target pcode operands that feed these per-character writer blocks.
+
+## Next tests
+- Run `python3 solve.py` live after the PoW fix. If the server sample is not the solved round1a-style variant, save the live sample and extend the trace patcher for the observed variant.
+
+- Direct main-stub patch was rejected by remote on a fresh round-1 sample, despite local output matching target under Wine. Likely server enforces pcode/VM-lane patch constraints or rejects .text changes.
+- Protected exception directory in round1a has output-lane range RVA 0x1ecfec..0x1ed2e2; all putchar return RVAs land there. Fuzzing file offset 0x1ea7ec..0x1eaae2 with xor-1 caused no clean output changes.
+- 6-byte tables are protected-code block metadata; one reference to first writer RVA 0xd9c9f appears at file offset 0x2243b0 as an entry in such a table.
+
+- At putchar hit 1/5, old key dword ff db be 3b is already on the stack at putchar_rsp+0x3c. Desired key dword inferred from target for bytes 2.. is c4 fe 8e 14 (old XOR repeating mask shifted by one).
+
+- Main entry RSP to key slot relation in round1a: putchar RSP = main_rsp - 0x50, key dword addr = putchar_rsp + 0x3c = main_rsp - 0x14.
+
+- Auto native handler patch locally verifies on three saved samples but remote rejected a fresh sample. Therefore server likely validates pcode-only modifications and rejects native instruction edits in protected section. Need trace current rotor dword back to VM pcode/data operand and patch that instead.
+
+- Width-aware pcode re-encryption solved round1a locally:
+  - A encoded operand at RVA `0x26e539` was changed from `0x5a4ad283` to `0x3d1afdd8` for desired A `0x148efec4`.
+  - Subsequent key-encoded operands must be compensated only while the low-32 key delta is live.
+  - Operand widths matter: qword decoders get mask `3b25302f00000000`, not repeated over 8 bytes.
+  - Additional handler starts needed beyond `mov`: `xor reg,[pcode]`, `add reg,[pcode]`, and `adc reg,[pcode]`.
+  - In round1a the key delta ends/resets at event 408, so only events 118..407 are re-encrypted. Patching later operands corrupts later VM phases.
+  - `scratch/pcode_patch_from_trace.py ... --end-event 407` produced `scratch/pcode_trace_window_round1a.exe`, which prints `Miku, Miku, you can call me Miku\r\n` locally under Wine and exits 0.
+- Live run after the PoW fix solved round 1 with page `0x1ed000`, A event 111, end event 412, local output matched the server target.
+- The same live run failed on round 2 at page `0x1ec000`; the original A detector picked a false r11 candidate at event 220.
+- Round2 r8 stack-lane variant solved locally:
+  - Real source is event 111 on page `0x1ec000`, handler RVA `0x16394d`, pcode RVA `0x1ec5f9`.
+  - The handler decodes a dword into `r9d`, writes it to the VM temp at `main_rsp-0x4c`, and later the final copy writes that value to the output rotor stack slot.
+  - The original encoded dword `0x39783eef` decodes to `0x3bbedbff`.
+  - For one reconstructed target rotation, encoded `0xdede80d2` plus compensation through event 409 prints `b'Yw~i8>Xu\\x7fk9<mq`<w\\x7f{<w\\x7fyp4sp<Yw~i\\n'`.
+  - The r8 rolling-key delta ends before the self-modifying/reset phase at events 410-414; patching event 415 corrupts the next phase.
+- `solve.py` now has an r8 stack-lane fallback:
+  - It searches for the known `0x16394d` handler shape where next-event `r9 == old_a`.
+  - It tries all four byte rotations of the output delta, compensates later pcode reads until the first non-read guard event, and accepts only a Wine-verified exact target match.
+  - Verified on `artifacts/live_round2.exe` and `artifacts/round1a/sample.exe`.
+- A later live round-1 sample introduced a third r8-keyed source-write family:
+  - Sample sha256 `dbe8932dfc61ecba9f08a5a94a38679aadc7a489d3d6da5b21e41b026c71dbaa`, saved at `artifacts/live_round1.exe`.
+  - Source write is event 124 on page `0x1ee000`, handler RVA `0x1ccd10`, pcode RVA `0x1ee42d`.
+  - Formula: `edx = enc ^ r8d; dec; not; xor 0x331b1e94; xor 0x1f; dec`, then `xor r8, rdx` and `mov [source], edx`.
+  - Original encoded `0x8b0a59a7` decodes to `0x3bbedbff`; for the Miku target, encoded `0xa43a7b60` and compensation through event 429 prints the target.
+  - `solve.py` now detects this as `r8-stack:edx`; verified with `solve_one` on the saved sample.
+- Latest live round-1 sample introduced a fourth direct-writer source family:
+  - Sample sha256 `8d41fa34bcfeda7e7a3bf9c78389e10cc079b9a3c996e54c729ca54bfaf8a1aa`, saved at `artifacts/live_round1.exe`.
+  - Final direct writer at handler RVA `0x1d2f14` copies `main_rsp-0x4c` to rotor slot `main_rsp-0x14`.
+  - Source slot writer is event 113 on page `0x26c000`, handler RVA `0x18dca2`, pcode RVA `0x26cc48`.
+  - Formula uses `rbx` key and decodes into `ecx`, then `xor rbx, rcx` and `mov [main_rsp-0x4c], ecx`.
+  - Original encoded `0xa4edf8d0` decodes to `0x3bbedbff`; for the Miku target, encoded `0xdd6cd137` with `rbx`-keyed compensation through event 420 prints the target.
+  - `solve.py` now detects this as `rbx-ecx`; verified by direct trace test and `solve_one` on the saved sample.
+- Regression after adding `rbx-ecx`:
+  - `solve_one(artifacts/live_round1.exe, Miku)` prints target via `rbx-ecx`.
+  - `solve_one(artifacts/round1a/sample.exe, Miku)` still prints target via the r11-keyed path.
+  - `solve_one(artifacts/live_round2.exe, Miku)` still prints target via `r8-stack:r9`.
+- Live run after `rbx-ecx` hit a fifth variant on round 1:
+  - Sample sha256 `eed1276c0da44e99b032a237c6b356764017dde2edc4b18b3ab8376836a5dad0`, saved at `artifacts/live_round1.exe`.
+  - Same original output and Miku target; `old_a=0x3bbedbff`, desired `0x148efec4`.
+  - Source pages tried: `0x10e000`, `0x1e7000`, `0x25e000`..`0x266000`.
+  - Existing families did not verify; page `0x262000` hit a symbolic inversion error, and page `0x263000` hit `no r11 update found`.
+  - Current next step: watch `main_rsp-0x4c` and `main_rsp-0x14` on this sample to find the source writer.
+
+## Current hypothesis
+- The final solve should, for each sample, dynamically find the pcode event that decodes final rotor A, invert that handler for the desired A value, then re-encrypt following key-encoded operands until the key delta resets.
+- The trace-driven compensation is viable; remaining work is automating A-event discovery, A-operand inversion, and end-event detection for fresh samples.
+- There are at least four useful pcode patch families: r11-keyed final-A operands, r8-keyed stack-lane operands (`r9` and `edx` variants), and the `rbx-ecx` direct-writer source-slot operand. All are local-verification gated in `solve.py`; next live run should reveal whether more families appear.
+
+- Fifth `rbp-edx` source family solved:
+  - Current sample `eed1276c0da44e99b032a237c6b356764017dde2edc4b18b3ab8376836a5dad0` uses event 114 on page `0x1e7000`, handler RVA `0x10eec5`, pcode RVA `0x1e7fa6`.
+  - Inversion formula for source encoded dword verified with carry `cf=1`: old enc `0x8185d9bc` -> old A `0x3bbedbff`; Miku enc `0xb0cc2586` -> desired A `0x148efec4`.
+  - Event 145 straddles into the next pcode page. Patching only page `0x1e7000` keeps the key delta live but crashes when the VM reads page `0x1e8000` under the old encoding.
+  - Continuation trace on page `0x1e8000` has 260 pcode-read events to normal exit; compensating events 2..260 plus page `0x1e7000` events 115..145 produces the target output locally.
+  - `solve.py` now has an integrated `rbp-edx` fallback that traces and compensates continuation pages when the pcode operand crosses a page boundary. `solve_one` verified on this sample.
+
+- Live run after integrating `rbp-edx` failed on a new round-1 family. Current `artifacts/live_round1.exe` is the new unsolved sample. Existing detectors tried pages `0x136000`, `0x1cf000`, `0x1ec000`, and `0x262000`..`0x26a000`; all reported `A event not found` or no verified family.
+- Sixth `r8-eax` source family solved:
+  - Current sample sha256 `bf1df3cfdf19733517a1e3c329780f2beb8d8ad3faf72aaf8da0d08987773001`, saved at `artifacts/live_round1.exe`.
+  - Source event is 111 on page `0x1ec000`, handler RVA `0x1369a2`, pcode RVA `0x1ecc8a`.
+  - Handler formula: `eax = enc ^ r8d; not; xor 0x28ba0f5c; xor r9d; dec; bswap; dec; bswap; not`, then `xor r8, rax` and source-slot store.
+  - Old encoded dword `0x6e5a718e` decodes to `0x3bbedbff`; Miku encoded dword `0x476a54b3` decodes to desired A `0x148efec4`.
+  - Compensation through event 409 patches 298 following r8-keyed operands and prints the target locally.
+  - `solve.py` now detects this as `r8-stack:eax`; regressions pass on `round1a` (`r11`), `live_round2` (`r8-stack:r9`), and current `live_round1` (`r8-stack:eax`).
+- Seventh `rsi-ecx` source family solved:
+  - Current sample sha256 `60853667b14dda4a0d2d11ba43d6d8b521fd7d017ebc66d18897b0da7eda0f7d`, saved at `artifacts/live_round1.exe`.
+  - Source event is 113 on page `0x268000`, handler RVA `0x1cdf70`, pcode RVA `0x268c40`; final rotor writer at `0xed4a2` copies `r10d` later.
+  - Handler formula with carry `cf=1`: `ecx = enc ^ esi; sbb 0xadb98dad; not; neg; lea ecx,[rdx+ecx+0x73ee26fa]`, then `xor rsi, rcx` and source-slot store.
+  - Old encoded dword `0x9c7cbc9e` decodes to `0x3bbedbff`; Miku encoded dword `0x7b4c9a55` decodes to `0x148efec4`.
+  - Compensation through event 419 patches 306 following rsi-keyed operands and prints the target locally.
+  - `solve.py` now detects this as `rsi-ecx`; verified through `solve_one` on the saved sample.
+- Eighth `r10-ecx` source family solved:
+  - Current sample sha256 `4789bf4dd3e35d8c2a6c3ecff357e2b8fd51590d7d6358354deb769146db1d3a`, saved at `artifacts/live_round1.exe`.
+  - Source event is 111 on page `0x1ee000`, handler RVA `0x1cfbd5`, pcode RVA `0x1ee3c3`.
+  - Handler formula: `ecx = enc ^ r10d; neg; inc; ror 2; not`, then `xor r10, rcx` and source-slot store.
+  - Old encoded dword `0x92be2220` decodes to `0x3bbedbff`; Miku encoded dword `0x2e7eb6cc` decodes to `0x148efec4`.
+  - Compensation through event 412 patches 301 following r10-keyed operands and prints the target locally.
+  - The next guard event does not expose `rcx == old_a`; `solve.py` detects this family by verifying the handler decode of the current encoded operand.
+- Ninth `r11-eax` source family solved:
+  - Saved sample sha256 `9f09906cf3913abedb2e5451ddd431989db26e4dc673e209fa2741bdb8a60058`, at `artifacts/round1b/sample.exe`.
+  - Source event is 49 on page `0x26b000`, handler RVA `0x138f6b`, pcode RVA `0x26b09b`; the following guard event has `rax == 0x3bbedbff`.
+  - Handler formula mutates `r8/rdi/rbx/rdx` first, then `eax = enc ^ r11d; not; add adjusted r8; rol 2; add adjusted rdi + 0x4b7ba74c; rol 3; xor 0x7c387a33; xor edx`, then `xor r11, rax` and writes the source slot.
+  - Old encoded dword `0x4d9681f7` decodes to `0x3bbedbff`; Miku encoded dword `0xf69d0e8c` decodes to `0x148efec4`.
+  - Compensation through event 354 patches 305 following r11-keyed operands and prints the target locally.
+  - `solve.py` now detects this as `r11-eax`; verified through `solve_one` on the saved sample.
+- Tenth `rdi-edx` source family solved:
+  - Preserved unsolved sample sha256 `8cdabd7766331683fa8e6a14e36c2cf9b318f4b28df3a102510523dbd05728fa`, at `artifacts/round0/sample.exe`.
+  - Source event is 119 on page `0x1ef000`, handler RVA `0x68038`, pcode RVA `0x1ef6a2`; it writes decoded `edx` into `main_rsp-0x4c`.
+  - Handler formula: `edx = enc ^ edi; rol 2; lea with ebx*2 - 0x4524757c; not; lea with eax + 0x51fc1e2d; rol 3; not; rol 2`, then `xor rdi, rdx` and source-slot store.
+  - Old encoded dword `0xe78855cc` decodes to `0x3bbedbff`; Miku encoded dword `0xae46f50a` decodes to `0x148efec4`.
+  - The continuation lane had multiple rdi-keyed byte/dword handlers that the old classifier skipped (`0x68921`, `0x68a3c`, `0x7abf8`, `0xb2cd`). Width-compensating all pcode reads through event 431 prints the target locally.
+  - `solve.py` now detects this as `rdi-edx`; saved-sample regression passes for round0, round1a, round1b, live_round2, and live_round1.
+- Eleventh `r11-eax-alt` source family solved:
+  - Live failed sample sha256 `075cc5456bf51338edd34df4211a704dbc8c333fff590e72fb56216f69fdb59e`, preserved at `artifacts/round_new1/sample.exe`.
+  - Source event is 117 on page `0x26b000`, handler RVA `0x1d1645`, pcode RVA `0x26b875`; it decodes into `eax`, updates `r11`, and stores to `main_rsp-0x4c`.
+  - Old encoded dword `0x1dd654d2` decodes to `0x3bbedbff`; Miku encoded dword `0x7b705ffb` decodes to `0x148efec4`.
+  - Continuation uses r11-keyed byte/dword/qword reads. Width-compensating all pcode reads through event 408 prints the target locally; compensating into the page-end transition around events 409-410 crashes.
+  - `solve.py` now detects this as `r11-eax-alt`.
+- Twelfth `rsi-ebx` source family solved:
+  - Failed live sample sha256 `fd9d3f5b212a7bfdb6d1b84d19d1a37c5e09df54b2ccb1bc567f152c42f2470b`, preserved at `artifacts/round_new2/sample.exe`.
+  - Source event is 70 on page `0x266000`, handler RVA `0x10adf3`, pcode RVA `0x2660e8`; it decodes into `ebx`, updates `rsi`, and stores to `main_rsp-0x4c` at native RVA `0x10ae95`.
+  - Correction to earlier scratch notes: `r9=base+0x2660ec`, not `base+0x2600ec`; the old encoded dword is raw RVA `0x2660e8`.
+  - Handler formula: `ebx = enc ^ esi; sub 0xad0b2db2; ror 3; xor 0xd9260f3a; xor r8d; not; adc r8d; not; inc`, where the `adc` carry is from `neg r10b` after `r10w = (cx after bts) ^ di`.
+  - Old encoded `0xbdad6c76` decodes to `0x3bbedbff`; Miku encoded `0x662e023f` decodes to `0x148efec4`.
+  - Width-compensating following rsi-keyed pcode reads through the locally verified endpoint (integrated run found event 362; standalone trace found event 376) prints the target.
+  - `solve.py` now detects this as `rsi-ebx`; saved-sample regression passes for round_new2, round_new1, round0, round1a, round1b, live_round2, and live_round1.
+- Thirteenth `rsi-eax` source family solved:
+  - Failed live sample sha256 `afad1779ad33979514557cf8b1fd71ded2a8bf803fcbaf1c23a268f933fa13a4`, preserved at `artifacts/round_new3/sample.exe`.
+  - Source event is 123 on page `0x267000`, handler RVA `0x1cfb4e`, pcode RVA `0x267a3a`; it decodes into `eax`, updates `rsi`, and stores to `main_rsp-0x4c` at native RVA `0x1cfbb6`.
+  - Handler formula: `eax = enc ^ esi; not; bswap; rol 2; xor 0xbd2824b4; xor sign16(dx)`, then `xor rsi, rax` and source-slot store.
+  - Old encoded `0xa8cb659f` decodes to `0x3bbedbff`; for target `b'Niku/ Mihu, zou `an `all#me Niku\n'`, encoded `0xe6c26954` decodes to `0x178efec4`.
+  - Width-compensating following rsi-keyed pcode reads through event 428 patches 305 operands and prints the target locally.
+  - `solve.py` now detects this as `rsi-eax`; saved-sample regression passes for round_new3, round_new2, round_new1, round0, round1a, round1b, live_round2, and live_round1.
+- Fourteenth `r9-ebp` source family solved:
+  - Failed live sample sha256 `21409b712dc171b99b9909c222aba26b10b5e278beda52db182510a2639b96e4`, preserved at `artifacts/round_new4/sample.exe`.
+  - Source event is 117 on page `0x1ef000`, handler RVA `0x1d084d`, pcode RVA `0x1ef4ab`; it decodes into `ebp`, updates `r9`, and stores to `main_rsp-0x4c` at native RVA `0x1d08c8`.
+  - Handler formula: `ebp = enc ^ r9d; xchg ch,cl; ror 1; not; lea ebp,[ebp + ecx*2 - 0x214e733a]; rol 3; not`, then `xor r9, rbp` and source-slot store.
+  - Old encoded `0x057764ed` decodes to `0x3bbedbff`; for the Miku target, encoded `0xd30b6dba` decodes to `0x148efec4`.
+  - Width-compensating following r9-keyed pcode reads through event 414 patches 297 operands and prints the target locally.
+  - `solve.py` now detects this as `r9-ebp`; `rbp_rva=` parsing was needed because guard logs do not emit a plain `rbp=` field.
+- Fifteenth `rdi-eax` source family solved:
+  - Failed live sample sha256 `3a5e5365d22a5bf46916920a9eff7b41a606ad72476e43959794cc5c1edba50d`, preserved at `artifacts/round_new5/sample.exe`.
+  - Source event is 118 on page `0x260000`, handler RVA `0x1b1a1c`, pcode RVA `0x260cd0`; it decodes into `eax`, updates `rdi`, and stores to `main_rsp-0x4c` at native RVA `0x1b1aa4`.
+  - Handler formula: `eax = enc ^ edi; ror 1; inc; bswap; lea eax,[rbp_pre + eax - 0x59178891]; neg; xor 0x15742baa; xor edx_after`, then `xor rdi, rax`. For this lane `rbp_pre` is the pre-load `eax`, and `edx_after` is `0xffffff00 | (initial bpl)`.
+  - Old encoded `0xe6c47539` decodes to `0x3bbedbff`; for the Miku target, encoded `0x581b9481` decodes to `0x148efec4`.
+  - Width-compensating following rdi-keyed pcode reads through event 404 patches 286 operands and prints the target locally.
+  - `solve.py` now detects this as `rdi-eax`.
+- Sixteenth `rbx-r11` source family solved:
+  - Failed live sample sha256 `60fbde6a04c9d72f2c0a1b469e859f542346d5d63ec9c8a597228a728716e3e2`, preserved at `artifacts/round_new6/sample.exe`.
+  - Source event is 85 on page `0x269000`, handler RVA `0x69d1c`, pcode RVA `0x269107`; it decodes into `r11d`, updates `rbx`, and stores to `main_rsp-0x4c` at native RVA `0x69d8b`.
+  - Handler formula: `r11d = enc ^ ebx; xor 0x5701e55f; xor edx; inc; ror 3; neg`, then `xor rbx, r11`.
+  - Old encoded `0x09631be5` decodes to `0x3bbedbff`; for the Miku target, encoded `0x70e2320e` decodes to `0x148efec4`.
+  - Width-compensating following rbx-keyed pcode reads through event 382 patches 297 operands and prints the target locally.
+  - `solve.py` now detects this as `rbx-r11`, and `source_pages()` preserves watchpoint discovery order so real source pages are tried before generic fallback pages.
+  - Saved regression passed for `round_new6`, `round_new5`, `round_new4`, `round_new3`, `round_new2`, `round_new1`, `round0`, `round1a`, `round1b`, and `live_round2`.
+- Seventeenth `r9-ecx` source family solved:
+  - Failed live sample sha256 `64d4e75ac458293785622d6718e8c4653291b452317639e507ad5e266a41db58`, preserved at `artifacts/round_new7/sample.exe`.
+  - The misleading first trace page `0x91000` is a native handler code page; the actual pcode operand is on mixed code/data page `0x26b000`.
+  - Source event is 112 on page `0x26b000`, handler RVA `0x91c0a`, pcode RVA `0x26bae8`; it decodes into `ecx`, updates `r9`, and stores to `main_rsp-0x4c` at native RVA `0x91c55`.
+  - Handler formula: `ecx = enc ^ r9d; rol bp, 0xef; lea ecx,[ecx + ebp - 0x4658e8a9]; not; dec; ror 1`, then `xor r9, rcx`.
+  - Old encoded `0x9da6dfcf` decodes to `0x3bbedbff`; for the Miku target, encoded `0x4c469171` decodes to `0x148efec4`.
+  - Width-compensating following r9-keyed pcode reads through event 415 patches 303 operands and prints the target locally.
+  - Saved regression after adding `r9-ecx` passed for `round_new7`, `round_new6`, `round_new5`, `round_new4`, `round_new3`, `round_new2`, `round_new1`, `round0`, `round1a`, `round1b`, and `live_round2`.
+- Eighteenth `rbx-rdi` source family solved manually:
+  - Failed live sample sha256 `138cdd61fc2f79487024812062a98b8fa942253dfd528b056f05285d8ddd1e4a`, preserved at `artifacts/round_new8/sample.exe`.
+  - Source event is 120 on page `0x260000`, handler RVA `0x1cc5c1`, pcode RVA `0x260f7b`; it decodes into `edi`, updates `rbx`, and stores to `main_rsp-0x4c` at native RVA `0x1cc610`.
+  - Handler formula: `edi = enc ^ ebx; dec; ror 1; dec; ror 3`, then `xor rbx, rdi`.
+  - Old encoded `0x387ebb9d` decodes to `0x3bbedbff`; for target `b'Niku/ Mihu, zou `an `all#me Niku\n'`, encoded `0xfb7ce82f` decodes to `0x178efec4` using the base `mask_to_rotated_delta` lane.
+  - The rbx delta crosses from page `0x260000` into page `0x261000`: compensate page-260 data reads through event 167, skip duplicate continuation event 1, then compensate page-261 data reads through event 256 before code-fetch event 257.
+  - Manual candidate `scratch/new8_rot_2c30253b_167_260.exe` prints the target locally.
+  - `solve.py` now detects this as `rbx-rdi` and traces the continuation page automatically.
+  - Saved regression after adding `rbx-rdi` passed for `round_new8`, `round_new7`, `round_new6`, `round_new5`, `round_new4`, `round_new3`, `round_new2`, `round_new1`, `round0`, `round1a`, `round1b`, and current `live_round2`.
+- Live run after adding `rbx-rdi` failed on a new round-1 family:
+  - Sample sha256 `ed00d4a9580edabf430d20b7ee6f69e4b71d447faec777833513b150992c1913`, preserved at `artifacts/round_new9/sample.exe`.
+  - Target is Miku; `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Source pages tried: `0x1e8000`, `0x69000`, `0x75000`, `0x6e000`, `0x25f000`..`0x267000`; existing families did not verify.
+  - Source event is 45 on page `0x1e8000`, handler RVA `0x69b85`, pcode RVA `0x1e8093`; it decodes into `r10d`, updates `r11`, and stores to `main_rsp-0x4c` at native RVA `0x69be2`.
+  - Handler formula: `r10d = enc ^ r11d; xor 0xb703844c; xor ecx0; inc; xor 0x0715276d; xor ecx2; rol 1`, where `ecx0 = dl*9 - 0x74c2aaee` and `ecx2` is after `add cx,di; not cx`.
+  - Old encoded `0x51817395` decodes to `0x3bbedbff`; for the Miku target, encoded `0xc619610e` decodes to `0x148efec4`.
+  - Width-compensating following r11-keyed pcode reads through the locally verified endpoint (integrated run found event 350; manual event 354 also printed the target) patches 305 operands and prints the target locally.
+  - `solve.py` now detects this as `r11-r10`; `solve_one` verified on the saved sample.
+  - Focused regression passed for `round_new9`, `round_new8`, `round_new1`, `round1b`, and `round_new7`.
+- Live run after adding `r11-r10` failed on another round-1 family:
+  - Sample sha256 `00b30a288a4f16080b442c7c7ad8742507eea4b202ad5fd0c3720768573ca665`, preserved at `artifacts/round_new10/sample.exe`.
+  - Target is Miku; base delta `0x2f30253b`.
+  - Source pages tried: `0x25b000`, `0x1c9000`, `0xe5000`, `0xd3000`, `0x255000`..`0x25d000`; existing families did not verify.
+  - Source event is 120 on page `0x25b000`, handler RVA `0x1c9aaf`, pcode RVA `0x25bae6`; it decodes into `r8d`, updates `rbx`, and stores to `main_rsp-0x4c` at native RVA `0x1c9ad9`.
+  - Handler formula: `r8d = enc ^ ebx; ror 1; dec; bswap; lea r8d,[eax_after + r8 + 0x0f7a230b]`, then `xor rbx, r8`.
+  - Old encoded `0xb7cb0c5f` decodes to `0x3bbedbff`; for the Miku target, encoded `0x298cec2f` decodes to `0x148efec4`.
+  - Width-compensating following rbx-keyed pcode reads through event 422 patches 302 operands and prints the target locally.
+  - `solve.py` now detects this as `rbx-r8`; `solve_one` verified on the saved sample.
+  - Focused regression passed for `round_new10`, `round_new9`, `round_new8`, `round_new6`, and `round1b`.
+- Live run after adding `rbx-r8` solved rounds 1 and 2, then failed on round 3:
+  - Sample sha256 `a42a351dcff39cece93ce2a8708d00fde4504c739f45c40fa64ec9c92a9070bc`, preserved at `artifacts/round_new11/sample.exe`.
+  - Target lane reconstructed from logged desired is `b'Luka-<M}ji,4xsu4b}n4b}lx!qe4Luka\n'`; base delta `0x2e242527`, desired `0x159afed8`.
+  - Source pages tried: `0x1ee000`, `0x16d000`, `0x167000`, `0x264000`..`0x26c000`; existing families did not verify.
+  - Nineteenth `rdi-r8` source family solved:
+    - Source event is 115 on page `0x1ee000`, handler RVA `0x162730`, pcode RVA `0x1eeeb3`; it decodes into `r8d`, updates `rdi`, and stores to `main_rsp-0x4c` at native RVA `0x1627af`.
+    - Handler formula: `r8d = enc ^ edi; lea r8d,[r8 + r11*4 + 0x780a32b2]; ror 1; bswap; neg; inc`, then `xor rdi, r8`.
+    - Old encoded `0x0f91a924` decodes to `0x3bbedbff`; encoded `0x5a5760d0` decodes to desired `0x159afed8`.
+    - The rdi-keyed lane crosses at first-page event 236: dword read at `0x1eefff` spans into page `0x1ef000`, then the same handler reads a hidden byte at `0x1ef003`. Must patch first page through event 236, trace page `0x1ef000`, skip duplicate continuation event 1, and compensate continuation events through event 180.
+    - `solve.py` now detects this as `rdi-r8`; `solve_one` on the saved sample prints `b'Luka-<M}ji,4xsu4b}n4b}lx!qe4Luka\n'`.
+- Live run after adding `rdi-r8` failed on a new round-1 family:
+  - Sample sha256 `f7e7a1fbacb47b18807dcf88eddd88b14b42cb1bdd3286d31396f53e1a204cda`, preserved at `artifacts/round_new12/sample.exe`.
+  - Target is Miku; base delta `0x2f30253b`.
+  - Source event is 107 on page `0x1eb000`, handler RVA `0x1b3233`, pcode RVA `0x1eb850`; it decodes into `ecx`, updates `rbx`, and stores to `main_rsp-0x4c` before the next guard event at RVA `0x1b3299`.
+  - Handler formula with verified carry `cf=0`: `ecx = enc ^ ebx; rol 1; sbb 0xd405a92c; rol 1; bswap; dec`, then `xor rbx, rcx`.
+  - Old encoded `0x299c32be` decodes to `0x3bbedbff`; for the Miku target, encoded `0x98244e81` decodes to `0x148efec4`.
+  - Width-compensating all following pcode reads through event 404 patches 297 operands and prints the target locally.
+  - `solve.py` now detects this as `rbx-ecx-mix`.
+- Live run after adding `rbx-ecx-mix` failed on another round-1 family:
+  - Sample sha256 `f7fa17723c647252614b5ba5d40832df5dfbc49e7c12c03d65e39b68b50929a4`, preserved at `artifacts/round_new13/sample.exe`.
+  - Target is Miku; base delta `0x2f30253b`.
+  - The first `main_rsp-0x4c` source-slot write with `0x3bbedbff` happens at native RVA `0x1ce89f`; its pcode lane is page `0x264000`, not the code page `0x4b000`.
+  - Source event is 93 on page `0x264000`, handler RVA `0x1ce803`, pcode RVA `0x264111`; it decodes into `eax`, updates `rbp`, and stores to `main_rsp-0x4c`.
+  - Handler formula: `eax = enc ^ ebp; ror 3; lea eax,[eax + r10 - 0x0b53833d]; ror 1; inc`, then `xor rbp, rax`.
+  - Old encoded `0x950f326b` decodes to `0x3bbedbff`; for the Miku target, encoded `0x200aefde` decodes to `0x148efec4`.
+  - Width-compensating all following pcode reads through event 382 patches 289 operands and prints the target locally.
+  - `solve.py` now detects this as `rbp-eax`.
+- Live run after adding `rbp-eax` failed on another round-1 family:
+  - Sample sha256 `b676360db0d3a1bc39f9d60005abe801c3d65e63f4a83306daf3cab0fe37fe88`, preserved at `artifacts/round_new14/sample.exe`.
+  - Target is Miku; base delta `0x2f30253b`.
+  - Source event is 118 on mixed page `0x26a000`, handler RVA `0x13b5db`, pcode RVA `0x26a18d`; it decodes into `ecx`, updates `r8`, and stores to `main_rsp-0x4c`.
+  - Handler formula with verified carry `cf=1`: `ecx = enc ^ r8d; neg; rol 3; inc; bswap; dec; ror 3; adc edx+cf; ror 1; neg; bswap`, then `xor r8, rcx`.
+  - Old encoded `0x55466686` decodes to `0x3bbedbff`; for the Miku target, encoded `0x8be62c0d` decodes to `0x148efec4`.
+  - Source-only patch and straightforward compensation both crash; watchpoint confirms the source slot becomes `0x148efec4`, but the `r8` delta remains live.
+  - Patched trace with compensation through event 268 crashes after event 266 in handler RVA `0x139cf9`, with `rbp` becoming an invalid execute target.
+  - Failed compensation hypotheses: all-read endpoints through 1456, classifier-only r8 endpoints, first-wins and reverse byte-overlap de-duplication, same-phase aligned dword/byte lanes, and event-119 immediate r8 reset.
+  - Current hypothesis: this variant needs multi-register state repair around the r8/rbp control handler rather than a single rolling-key XOR window.
+- Twenty-first `rsi-r11` source family solved:
+  - Failed live sample sha256 `da9a6bfe38fd32fa04cb236be1bcdcf3dd9fb930fad42935d6a1e25460e5154b`, preserved at `artifacts/round_new15/sample.exe`.
+  - Source event is 114 on page `0x25f000`, handler RVA `0x1cc00d`, pcode RVA `0x25f3d8`; it decodes into `r11d`, updates `rsi`, and stores to `main_rsp-0x4c` at native RVA `0x1cc074`.
+  - Handler formula: `r11d = enc ^ esi; inc; rol 3; sub 0xd23afb27; rol 2; dec; not`, then `xor rsi, r11`.
+  - Old encoded `0x94030c70` decodes to `0x3bbedbff`; for the Miku target, encoded `0xbdc8839e` decodes to `0x148efec4`.
+  - Width-compensating following rsi-keyed pcode reads through event 408 patches 294 operands and prints the target locally.
+  - `solve.py` now detects this as `rsi-r11`; saved-sample regression passed for `round_new15`, `round_new3`, `round_new2`, `round_new13`, `round_new12`, `round_new11`, and `round0`.
+- Twenty-second `rbx-eax` source family solved:
+  - Failed live sample sha256 `e37df5a188862cc3edb566efcdab653837241b5bbad0ec0f79a4ec6f365d006b`, preserved at `artifacts/round_new16/sample.exe`.
+  - Source event is 115 on page `0x1ed000`, handler RVA `0x1b52a5`, pcode RVA `0x1ed298`; it decodes into `eax`, updates `rbx`, and stores to `main_rsp-0x4c` at native RVA `0x1b5336`.
+  - Handler formula: `eax = enc ^ ebx; ror 3; bswap; not; dec; rol 3`, then `xor rbx, rax`.
+  - Old encoded `0x7a83b5be` decodes to `0x3bbedbff`; for the Miku target, encoded `0xb2a48694` decodes to `0x148efec4`.
+  - Width-compensating following rbx-keyed pcode reads through event 421 patches 306 operands and prints the target locally.
+  - `solve.py` now detects this as `rbx-eax`; focused regression passed for `round_new16`, `round_new15`, `round_new10`, `round_new12`, and `round_new8`.
+- Twenty-third `rsi-r10` source family solved:
+  - Failed live sample sha256 `cb80237da5c35806bb1d8313e71a01b9ae9162d15958206c6552c89de71d9402`, preserved at `artifacts/round_new17/sample.exe`.
+  - Source event is 116 on page `0x263000`, handler RVA `0x69793`, pcode RVA `0x263ea9`; it decodes into `r10d`, updates `rsi`, and stores to `main_rsp-0x4c` at native RVA `0x69804`.
+  - Handler formula: `r10d = enc ^ esi; ror 1; bswap; ror 1; not`, then `xor rsi, r10`.
+  - Old encoded `0x7ee1c6ff` decodes to `0x3bbedbff`; for the Miku target, encoded `0x92750643` decodes to `0x148efec4`.
+  - Width-compensating following rsi-keyed pcode reads through event 412 patches 296 operands and prints the target locally.
+  - `solve.py` now detects this as `rsi-r10`; focused regression passed for `round_new17`, `round_new15`, `round_new3`, `round_new2`, and `round_new16`.
+- New `round_new18` investigation:
+  - Failed live sample sha256 `e33d05b5cf2722e3f8ddc148fe1ed33767410e23444eec3e01f6cd19f8494420`, preserved at `artifacts/round_new18/sample.exe`.
+  - Source event 112 on page `0x266000`, handler RVA `0x40198`, pcode RVA `0x2662a2`, decodes `0xfc014f73 -> 0x3bbedbff`.
+  - Handler formula: `ecx = enc ^ r10d; not; rol 1; bswap; dec`, then `xor r10, rcx` and source-slot store. Desired Miku encoded value is `0x1e905764`.
+  - Straight source-lane compensation fails because changing the source value perturbs VM data/control later in the same page. Cross-page guard event 358 also reports `mem_rva=0x266000` for a dword whose true operand starts at `0x265ffd`; effective-address patching fixes that artifact but not the data/control coupling.
+  - Working fallback: watch `main_rsp-0x14`, find the final rotor-copy store, and patch the preceding native `mov reg32, [stack]` feeding that store to `mov reg32, desired_a`. For new18 this patches RVA `0x48e19` (`mov r8d, imm32`) and prints the target locally.
+  - The same fallback also solves the previously unsolved `round_new14` locally by patching its final-copy load at RVA `0x1441fb`.
+  - Native final-copy fallback appears rejected by the remote verifier, so `solve.py` now only uses it when `ALLOW_NATIVE_FALLBACK=1`.
+  - Added `scratch/win_dbg_guard_stack.py` to dump stack bytes for selected guard events; next test is original vs patched `new18_actual2_358` around events 350-358 to find the remaining data/control dependency.
+  - Pcode-only fix found for new18:
+    - Patch source event 112 (`0x2662a2`) to desired encoded `0x1e905764`.
+    - Compensate normal r10-keyed operands through event 316.
+    - At event 317, handler RVA `0x4035a`, pcode RVA `0x266074`, deliberately decode `0x7fffffff ^ delta` instead of preserving `0x7fffffff`; this restores the rolling `r10` key before the later control-heavy block.
+    - Integrated as `try_patch_r10_ecx_reset_lane`; direct saved-trace verification produced `b'Miku, Miku, you can call me Miku\n'` with 204 compensated operands.
+- Twenty-fourth `rsi-edx-reset` source family solved:
+  - Failed live sample sha256 `6a04ca7768ea4058c152bbb09434b0a66466503fc733b37a6b4ef22b249becb0`, preserved at `artifacts/round_new19/sample.exe`.
+  - Source event is 114 on page `0x1ec000`, handler RVA `0x1cbc92`, pcode RVA `0x1ec5b3`; it decodes into `edx`, updates `rsi`, and stores to `main_rsp-0x4c` at native RVA `0x1cbd07`.
+  - Source handler formula can be inverted by computing the visible partial path `enc ^ esi; not; dec; ror 1; neg; lea + 0x31367100`, then inferring the hidden stack-mixed xor constant from the original decoded `0x3bbedbff`.
+  - Old encoded `0x854a2c8a` decodes to `0x3bbedbff`; for the Miku target, encoded `0xdeea62f4` decodes to `0x148efec4`.
+  - Straight compensation crashes because the `rsi` delta perturbs later VM state. Working pcode-only fix compensates normal `rsi` operands through event 384, then at event 385 (handler RVA `0x3f4e9`, pcode RVA `0x1ec8a1`) deliberately decodes `0x80000000 ^ delta` to restore the rolling key.
+  - Integrated as `try_patch_rsi_edx_reset_lane`; saved-sample verification produced `b'Miku, Miku, you can call me Miku\n'` with 270 compensated operands.
+- Twenty-fifth `rsi-ebp-crosspage` source family solved:
+  - Failed live sample sha256 `415ef9e61e866cb12c25fe4af19bd9505cea7ff6d3c6529ebb7ac7d3d79991d0`, preserved at `artifacts/round_new20/sample.exe`.
+  - Source event is 123 on page `0x262000`, handler RVA `0x1623e0`, pcode RVA `0x262f60`; it decodes into `ebp`, updates `rsi`, and stores to `main_rsp-0x4c`.
+  - Handler formula: `ebp = enc ^ esi; xor 0xe2ea32eb; xor edi; -1; bswap; lea + ebx - 0x7c415e96; bswap; sbb 0x8b0eeb89 with CF=1; neg`, with `bl` negated before the LEA. Old encoded `0x04db7946` decodes to `0x3bbedbff`; Miku encoded `0xedaa1482` decodes to `0x148efec4`.
+  - Simple compensation through event 179 failed because event 179 has a dword operand spanning `0x262ffe..0x263001` and the same handler then consumes hidden pcode bytes on page `0x263000` while `rsi` is still shifted.
+  - Working pcode-only fix: patch source event 123, compensate page `0x262000` reads through event 179, trace continuation page `0x263000`, compensate continuation events 2..247, and stop before event 248 because that handler restores `rsi` to the pcode pointer for the following `r11`-keyed phase.
+  - Integrated as `try_patch_rsi_ebp_crosspage_lane`; saved-sample verification printed `b'Miku, Miku, you can call me Miku\n'` with 302 compensated operands.
+  - `solve_one` end-to-end check on `round_new20` selected page `0x262000` and solved via `rsi-ebp-cross` with `A=123`, `first_end=179`, `cont_end=247`, `enc=0xedaa1482`, `n=302`.
+- New `round_new21` investigation:
+  - Live run after adding `rsi-ebp-crosspage` failed on round 1 before sending a patch; no remote rejection.
+  - Source pages tried were `0x1ce000`, `0x267000`, `0x1cf000`, `0xba000`, `0xae000`, `0x263000`..`0x26b000`; all current pcode families failed.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+- Twenty-sixth `r9-edx` source family solved:
+  - Failed live sample sha256 `e8fea0e95bcdcc52f90a7b1bd2a8d2a1a57cf0a79ef54d035a9bb4513696414b`, preserved at `artifacts/round_new21/sample.exe`.
+  - Source event is 48 on page `0x267000`, handler RVA `0x1ceea1`, pcode RVA `0x26708c`; it decodes into `edx`, updates `r9`, and stores to `main_rsp-0x4c` at native RVA `0x1ceeef`.
+  - Handler formula: `edx = enc ^ r9d; bswap; neg; lea edx,[edx + rdi*2 - 0x05faf8eb]; ror 1`, then `xor r9, rdx`.
+  - Old encoded `0x98f36013` decodes to `0x3bbedbff`; Miku encoded `0x128dc0a2` decodes to `0x148efec4`.
+  - Width-compensating following `r9`-keyed pcode reads through event 357 patches 309 operands and prints the target locally.
+  - `solve.py` now detects this as `r9-edx`; focused regression passed for `round_new21`, `round_new7` (`r9-ecx`), `round_new4` (`r9-ebp`), and `round_new20` (`rsi-ebp-crosspage`).
+- Twenty-seventh `rsi-eax-alt-crosspage` source family solved:
+  - Failed live sample sha256 `f6e147eebfe2db4b9049897607d8742cb9e0f17b9c9b1e0bb553fab62c829667`, preserved at `artifacts/round_new22/sample.exe`.
+  - Source event is 117 on page `0x269000`, handler RVA `0x15d928`, pcode RVA `0x269d65`; it decodes into `eax`, updates `rsi`, and stores to `main_rsp-0x4c` at native RVA `0x15d979`.
+  - Handler formula: `eax = enc ^ esi; neg; inc; not; rol 1; xor 0x1863cd7f; xor (~initial_r10d)`, then `xor rsi, rax`.
+  - Old encoded `0xed88e701` decodes to `0x3bbedbff`; Miku encoded `0x7a10f594` decodes to `0x148efec4`.
+  - Straight first-page compensation fails because event 358 has a dword operand at `0x269fff` spanning into `0x26a000`; continuation page events 2..60 must also be compensated.
+  - Working pcode-only fix: patch source event 117, compensate page `0x269000` through event 358, trace page `0x26a000`, skip duplicate continuation event 1, and compensate continuation events through event 60.
+  - Integrated as `try_patch_rsi_eax_alt_cross_source_lane`; saved-sample verification printed `b'Miku, Miku, you can call me Miku\n'` with 300 compensated operands.
+  - Focused regression passed for `round_new22`, `round_new21`, `round_new20`, and `round_new3` (`rsi-eax`).
+- New `round_new23` investigation:
+  - Live run after adding `rsi-eax-alt-crosspage` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `5fd2f2de301bb116d02ac6832d08e2c27cf5c3d5ae7399e961e262d6cdb5ce88`, preserved at `artifacts/round_new23/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages tried by the solver: `0x270000`, `0x1d2000`, `0x116000`, and `0x26a000`..`0x272000`; existing families did not verify.
+- Twenty-eighth `r11-ecx` source family solved:
+  - Source event is 114 on page `0x270000`, handler RVA `0x1d258c`, pcode RVA `0x270581`; it decodes into `ecx`, updates `r11`, and stores to `main_rsp-0x4c` at native RVA `0x1d25f6`.
+  - Handler formula: `ecx = enc ^ r11d; dec; rol 1; inc; xor 0xd92c74a8; xor ((r10b + 1) & 0xffffffff)`, then `xor r11, rcx`.
+  - Old encoded `0x8d209fd7` decodes to `0x3bbedbff`; Miku encoded `0x1ab88d4d` decodes to `0x148efec4`.
+  - Width-compensating following `r11`-keyed pcode reads through event 409 patches 295 operands and prints the target locally.
+  - Integrated as `try_patch_r11_ecx_source_lane`; saved-sample verification selected page `0x270000` and solved via `r11-ecx` with `A=114`, `end=409`, `enc=0x1ab88d4d`, `n=295`.
+  - Focused regression passed for `round_new23`, `round_new9` (`r11-r10`), `round1b` (`r11-eax`), `round_new1` (`r11-eax-alt`), and `round_new22`.
+- New `round_new24` investigation:
+  - Live run after adding `r11-ecx` solved rounds 1 and 2, then failed on round 3 before sending a patch; no remote rejection.
+  - Sample sha256 `88288cc0f5179476a72d1598f10464589ec87754a1d7f72deb1e05905a715240`, preserved at `artifacts/round_new24/sample.exe`.
+  - Target lane is the Luka string with `old_a=0x3bbedbff`, `desired=0x159afed8`, base delta `0x2e242527`.
+  - Candidate pages included `0x1ee000`, `0x1ce000`, `0x1cf000`, and `0x263000`..`0x26b000`; existing families did not verify.
+- Twenty-ninth `r11-edx` source family solved:
+  - Source event is 113 on page `0x1ee000`, handler RVA `0x1cf282`, pcode RVA `0x1ee570`; it decodes into `edx`, updates `r11`, and stores to `main_rsp-0x4c` at native RVA `0x1cf2e3` / watchpoint after-store RVA `0x1cf2e8`.
+  - Handler formula: `edx = (edx0 + enc) ^ r11d; inc; neg; lea edx,[rsi_after + edx - 0x5a6d8291]; ror 1`, where `rsi_after` includes the prior `inc rsi; xadd esi,edi` effects, then `xor r11, rdx`.
+  - Old encoded `0xd3ea2977` decodes to `0x3bbedbff`; Luka encoded `0x80529339` decodes to `0x159afed8`.
+  - Width-compensating following `r11`-keyed pcode reads through event 421 patches 308 operands and prints the target locally.
+  - Integrated as `try_patch_r11_edx_source_lane`; saved-sample verification selected page `0x1ee000` and solved via `r11-edx` with `A=113`, `end=421`, `enc=0x80529339`, `n=308`.
+  - Focused regression passed for `round_new24`, `round_new11` (`rdi-r8` Luka), `round_new23`, and `round_new9` (`r11-r10`).
+- New `round_new25` investigation:
+  - Live run after adding `r11-edx` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `4658adc8b391629a8cb40045aabee7b9f681c80ce636d91af34893e01b1a4318`, preserved at `artifacts/round_new25/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages included `0x1cf000`, `0x264000`, `0x0c1000`, and `0x262000`..`0x269000`; existing families did not verify.
+- Thirtieth `r11-ebx` source family solved:
+  - Source event is 109 on page `0x264000`, handler RVA `0x1cf1a8`, pcode RVA `0x264775`; it decodes into `ebx`, updates `r11`, and stores to `main_rsp-0x4c` at native RVA `0x1cf1e4` / watchpoint after-store RVA `0x1cf1ec`.
+  - Handler formula: `ebx = enc ^ r11d; not; neg; bswap; neg`, then `xor r11, rbx`.
+  - Old encoded `0x82b48e58` decodes to `0x3bbedbff`; Miku encoded `0xbf91be71` decodes to `0x148efec4`.
+  - Width-compensating following `r11`-keyed pcode reads through event 412 patches 303 operands and prints the target locally.
+  - Integrated as `try_patch_r11_ebx_source_lane`; saved-sample verification selected page `0x264000` and solved via `r11-ebx` with `A=109`, `end=412`, `enc=0xbf91be71`, `n=303`.
+  - Focused regression passed for `round_new25`, `round_new24`, `round_new23`, and `round1b` (`r11-eax`).
+- New `round_new26` investigation:
+  - Live run after adding `r11-ebx` solved round 1, then failed on round 2 before sending a patch; no remote rejection.
+  - Sample sha256 `1d0d8b6498f47de2ecc18b70a1ca287093e1fb51b51991d7f93d0ffb6034ef5d`, preserved at `artifacts/round_new26/sample.exe`.
+  - Target lane is `b'Niku/ Mihu, zou `an `all#me Niku\n'` with `old_a=0x3bbedbff`, `desired=0x178efec4`, base delta `0x2c30253b`.
+  - Candidate pages included `0x26f000`, `0x1b7000`, `0x1b0000`, and `0x269000`..`0x271000`; existing families did not verify.
+- Thirty-first `r9-eax` source family solved:
+  - Source event is 118 on page `0x26f000`, handler RVA `0x1b7819`, pcode RVA `0x26f9ed`; it decodes into `eax`, updates `r9`, and stores to `main_rsp-0x4c` at native RVA `0x1b787f` / watchpoint after-store RVA `0x1b7887`.
+  - Handler formula: `eax = enc ^ r9d; ror 1; neg; lea eax,[rax + (edx0 >> 9) - 0x237b75fe]; xor 0xa009c7b9; xor ebp; neg`, then `xor r9, rax`.
+  - Old encoded `0x729f675a` decodes to `0x3bbedbff`; Niku encoded `0xab3fa181` decodes to `0x178efec4`.
+  - Width-compensating following `r9`-keyed pcode reads through event 424 patches 306 operands and prints the target locally.
+  - Integrated as `try_patch_r9_eax_source_lane`; saved-sample verification selected page `0x26f000` and solved via `r9-eax` with `A=118`, `end=424`, `enc=0xab3fa181`, `n=306`.
+  - Focused regression passed for `round_new26`, `round_new21` (`r9-edx`), `round_new7` (`r9-ecx`), and `round_new4` (`r9-ebp`).
+- New `round_new27` investigation:
+  - Live run after adding `r9-eax` solved rounds 1 and 2, then failed on round 3 before sending a patch; no remote rejection.
+  - Sample sha256 `2baa9c758d98a520f4e9ce3997f7abb4ddea7329638a90fb7beda19719ecf4ba`, preserved at `artifacts/round_new27/sample.exe`.
+  - Target lane is the Luka string with `old_a=0x3bbedbff`, `desired=0x159afed8`, base delta `0x2e242527`.
+  - Candidate pages included `0x1ce000`, `0x1ef000`, `0x1cf000`, and `0x265000`..`0x26d000`; existing families did not verify.
+  - Watchpoint on `main_rsp-0x4c` shows the source-slot write producing old A at native RVA `0x1cefbe`; named traces saved at `scratch/trace_new27_1ce000.txt`, `scratch/trace_new27_1ef000.txt`, and `scratch/trace_new27_1cf000.txt`.
+- Thirty-second `r8-r11` source family solved:
+  - Source event is 111 on page `0x1ef000`, handler RVA `0x1cef71`, pcode RVA `0x1efba6`; it decodes into `r11d`, updates `r8`, and stores to `main_rsp-0x4c` at native RVA `0x1cefb6` / watchpoint after-store RVA `0x1cefbe`.
+  - Handler formula: `r11d = enc ^ r8d; neg; ror 1; neg; ror 2; neg`, then `xor r8, r11`.
+  - Old encoded `0x5e58494d` decodes to `0x3bbedbff`; Luka encoded `0x2f796006` decodes to `0x159afed8`.
+  - Width-compensating following `r8`-keyed pcode reads through event 394 patches 283 operands and prints the target locally.
+  - Integrated as the `r8-stack:r11` subfamily; saved-sample verification selected page `0x1ef000` and solved with `A=111`, `end=394`, `enc=0x2f796006`, `n=283`.
+  - Focused regression passed for `round_new27`, `round_new26` (`r9-eax`), `round_new24` (`r11-edx`), and `round_new23` (`r11-ecx`).
+- New `round_new28` investigation:
+  - Live run after adding `r8-r11` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `238b7bf7d03aac5c8813859c29ef4eafee644c87b1f8cba1918c0f9d5709ac79`, preserved at `artifacts/round_new28/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages included `0x142000`, `0x1e9000`, `0x1cf000`, and `0x261000`..`0x269000`; existing families did not verify.
+  - Watchpoint on `main_rsp-0x4c` shows old A written at native RVA `0x1cf574` with `rcx=0x3bbedbff`; named traces saved at `scratch/trace_new28_142000.txt`, `scratch/trace_new28_1e9000.txt`, `scratch/trace_new28_1cf000.txt`, and `scratch/trace_new28_268000.txt`.
+- Thirty-third `r10-ecx-decrol` source family solved:
+  - Source event is 108 on page `0x1e9000`, handler RVA `0x1cf516`, pcode RVA `0x1e9980`; it decodes into `ecx`, updates `r10`, and stores to `main_rsp-0x4c` at native RVA `0x1cf56d` / watchpoint after-store RVA `0x1cf574`.
+  - Handler formula: `ecx = enc ^ r10d; dec; rol 1; bswap; not`, then `xor r10, rcx`.
+  - Old encoded `0x7c4e05a8` decodes to `0x3bbedbff`; Miku encoded `0xe1dc9dbd` decodes to `0x148efec4`.
+  - Width-compensating following `r10`-keyed pcode reads through event 384 patches 276 operands and prints the target locally.
+  - Integrated as `try_patch_r10_ecx_decrol_source_lane`; saved-sample verification selected page `0x1e9000` and solved with `A=108`, `end=384`, `enc=0xe1dc9dbd`, `n=276`.
+  - Focused regression passed for `round_new28`, `round_new18` (`r10-ecx-reset`), `round_new27` (`r8-r11`), and `round_new26` (`r9-eax`).
+- New `round_new29` investigation:
+  - Live run after adding `r10-ecx-decrol` solved rounds 1 and 2, then failed on round 3 before sending a patch; no remote rejection.
+  - Sample sha256 `dd254079ef2a3dad05aa885a8abb89776f56b75b0ab97417146011a4b7979432`, preserved at `artifacts/round_new29/sample.exe`.
+  - Target lane is the Luka string with `old_a=0x3bbedbff`, `desired=0x159afed8`, base delta `0x2e242527`.
+  - Candidate pages included `0x162000`, `0x270000`, `0x15b000`, and `0x269000`..`0x271000`; existing families did not verify.
+  - Watchpoint on `main_rsp-0x4c` shows old A written at native RVA `0x162a18` with `rax=0x3bbedbff`; named traces saved at `scratch/trace_new29_162000.txt`, `scratch/trace_new29_270000.txt`, `scratch/trace_new29_15b000.txt`, `scratch/trace_new29_269000.txt`, and `scratch/trace_new29_271000.txt`.
+- Thirty-fourth `r8-eax-long` source family solved:
+  - Source event is 71 on page `0x270000`, handler RVA `0x162944`, pcode RVA `0x270f20`; it decodes into `eax`, updates `r8`, and stores to `main_rsp-0x4c` at native RVA `0x162a10` / watchpoint after-store RVA `0x162a18`.
+  - Handler formula: `eax = enc ^ r8d; neg; inc; bswap; inc; ror 2; dec; ror 1; bswap; inc`, then `xor r8, rax`.
+  - Old encoded `0x6161f576` decodes to `0x3bbedbff`; Luka encoded `0x3240dc3f` decodes to `0x159afed8`.
+  - Width-compensating following `r8`-keyed pcode reads through event 368 patches 297 operands and prints the target locally.
+  - Integrated as the `r8-stack:eax-long` subfamily; saved-sample verification selected page `0x270000` and solved with `A=71`, `end=368`, `enc=0x3240dc3f`, `n=297`.
+  - Focused regression passed for `round_new29`, `round_new28` (`r10-ecx-decrol`), `round_new27` (`r8-r11`), and `round_new26` (`r9-eax`).
+- New `round_new30` investigation:
+  - Live run after adding `r8-eax-long` solved rounds 1 and 2, then failed on round 3 before sending a patch; no remote rejection.
+  - Sample sha256 `8ae658bec98112e61bea0d0f098bd213bfa3c1a47a93bb5aa6ea3f1d749249c1`, preserved at `artifacts/round_new30/sample.exe`.
+  - Target lane is the Luka string with `old_a=0x3bbedbff`, `desired=0x159afed8`, base delta `0x2e242527`.
+  - Main-entry watch on `main_rsp-0x4c` showed the earliest source-slot old-A write at native RVA `0x1d1607`; the real pcode page is `0x1ea000`.
+- Thirty-fifth `rbx-rdi-or` source family solved:
+  - Source event is 77 on page `0x1ea000`, handler RVA `0x1d1551`, pcode RVA `0x1eaf07`; it OR-loads into `edi`, updates `rbx`, and stores to `main_rsp-0x4c` at native RVA `0x1d15ff` / watchpoint after-store RVA `0x1d1607`.
+  - Handler formula for this source where initial `edi=0`: `edi = enc ^ ebx; inc; bswap; ror 1; bswap; ror 3; lea + (rsi^0x1000000) + 0x23983bbd; ror 1; lea + (rsi^0x1000000) + 0x411ea9b7`, then `xor rbx, rdi`.
+  - Old encoded `0x97da9258` decodes to `0x3bbedbff`; Luka encoded `0x5a5ef674` decodes to `0x159afed8`.
+  - Width-compensating following `rbx`-keyed pcode reads through event 381 patches 304 operands and prints the target locally.
+  - Integrated as `try_patch_rbx_rdi_or_source_lane`; saved-sample verification selected page `0x1ea000` and solved with `A=77`, `end=381`, `enc=0x5a5ef674`, `n=304`.
+  - Focused regression passed for `round_new30`, `round_new8` (`rbx-rdi` cross-page), and `round_new29` (`r8-eax-long`).
+- New `round_new31` investigation:
+  - Live run after adding `rbx-rdi-or` solved rounds 1 and 2, then failed on round 3 before sending a patch; no remote rejection.
+  - Sample sha256 `ea21cabb04d335d45e088fb7642c7c55698a5ab663efbfd4f3ca06856e808128`, preserved at `artifacts/round_new31/sample.exe`.
+  - Target lane is the Luka string with `old_a=0x3bbedbff`, `desired=0x159afed8`, base delta `0x2e242527`.
+- Thirty-sixth `r9-ecx-sbb` source family solved:
+  - Source event is 119 on page `0x26d000`, handler RVA `0x1d0b9b`, pcode RVA `0x26d917`; it decodes into `ecx`, updates `r9`, and stores to `main_rsp-0x4c` at native RVA `0x1d0be1` / watchpoint after-store RVA `0x1d0be6`.
+  - Handler formula: `ecx = enc ^ r9d; inc; bswap; sbb ecx, 0x713c0684` with CF=1 from the preceding stack `sar`, then `rol ecx, 2`; finally `xor r9, rcx`.
+  - Old encoded `0xf8d67548` decodes to `0x3bbedbff`; Luka encoded `0x47adfc02` decodes to `0x159afed8`.
+  - Width-compensating following `r9`-keyed pcode reads through event 427 patches 308 operands and prints the target locally.
+  - Integrated as the `r9-ecx-sbb` subfamily inside `try_patch_r9_ecx_source_lane`; saved-sample verification selected page `0x26d000` and solved with `A=119`, `end=427`, `enc=0x47adfc02`, `n=308`.
+  - Focused regression passed for `round_new31`, `round_new7` (`r9-ecx`), `round_new21` (`r9-edx`), `round_new26` (`r9-eax`), and `round_new30` (`rbx-rdi-or`).
+- New `round_new32` investigation:
+  - Live run after adding `r9-ecx-sbb` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `6e9c27c8a48ba40c53f83f1d1483012a4feba14214b6d8f313388b4886780a80`, preserved at `artifacts/round_new32/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages from the failed live run: `0xef000`, `0xe4000`, `0x268000`, `0xdf000`, `0x261000`..`0x267000`, `0x269000`; existing families did not verify.
+- Thirty-seventh `r11-rsi` source family solved:
+  - Source event is 116 on page `0x268000`, handler RVA `0xe43d5`, pcode RVA `0x268893`; it decodes into `esi`, updates `r11`, and stores to `main_rsp-0x4c` at native RVA `0xe442f` / watchpoint after-store RVA `0xe4433`.
+  - Handler formula in this sample reduces to `esi = enc ^ r11d; neg; dec; ror 1; lea -0x25004b01`, then `xor r11, rsi`. The `rcx*4` term in the `lea` is zero after `and ecx,0xde042537; sal ecx,0xcf`.
+  - Old encoded `0x42fa20e4` decodes to `0x3bbedbff`; Miku encoded `0xf09afd6e` decodes to `0x148efec4`.
+  - Width-compensating following `r11`-keyed pcode reads through event 421 patches 305 operands and prints the target locally.
+  - Integrated as `try_patch_r11_rsi_source_lane`; saved-sample verification selected page `0x268000` and solved with `A=116`, `end=421`, `enc=0xf09afd6e`, `n=305`.
+  - Focused regression passed for `round_new32`, `round_new23` (`r11-ecx`), `round_new24` (`r11-edx`), `round_new25` (`r11-ebx`), and `round_new31` (`r9-ecx-sbb`).
+- New `round_new33` investigation:
+  - Live run after adding `r11-rsi` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `434980687726d8d7902485cd4a04629f2a8e3b0ee83d8ae92422859182e2271c`, preserved at `artifacts/round_new33/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages from the failed live run: `0x1e7000`, `0x1cd000`, `0x128000`, `0x25f000`..`0x267000`; existing families did not verify.
+- Thirty-eighth `r9-rsi` source family solved:
+  - Source event is 112 on page `0x1e7000`, handler RVA `0x1369c4`, pcode RVA `0x1e7802`; it decodes into `esi`, updates `r9`, and stores to `main_rsp-0x4c` at native RVA `0x136a1c` / watchpoint after-store RVA `0x136a24`.
+  - Handler formula: `esi = enc ^ r9d; neg cl; lea esi,[rcx + rsi + 0x1500fca7]; rol esi,1; inc; not`, then `xor r9, rsi`.
+  - Old encoded `0x543c5b54` decodes to `0x3bbedbff`; Miku encoded `0xc0546836` decodes to `0x148efec4`.
+  - Width-compensating following `r9`-keyed pcode reads through event 414 patches 302 operands and prints the target locally.
+  - Integrated as `try_patch_r9_rsi_source_lane`; saved-sample verification selected page `0x1e7000` and solved with `A=112`, `end=414`, `enc=0xc0546836`, `n=302`.
+  - Focused regression passed for `round_new33`, `round_new7` (`r9-ecx`), `round_new21` (`r9-edx`), `round_new26` (`r9-eax`), and `round_new31` (`r9-ecx-sbb`).
+- New `round_new34` investigation:
+  - Live run after adding `r9-rsi` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `849d9889632a2c6e54dfcb9a8149a8dc4ded64a80e1918983d6dbe9deb960996`, preserved at `artifacts/round_new34/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages from the failed live run: `0x1cc000`, `0x1ea000`, `0x182000`, `0x25e000`..`0x266000`; existing families did not verify.
+- Thirty-ninth `rbx-edx` source family solved:
+  - Source event is 115 on page `0x1ea000`, handler RVA `0x1ccd87`, pcode RVA `0x1ea7b6`; it decodes into `edx`, updates `rbx`, and stores to `main_rsp-0x4c` at native RVA `0x1ccde8` / watchpoint after-store RVA `0x1ccdf0`.
+  - Handler formula: `edx = enc ^ ebx; neg; bswap; rol edx,2; neg`, then `xor rbx, rdx`.
+  - Old encoded `0x7c12d9b3` decodes to `0x3bbedbff`; Miku encoded `0x331b15fa` decodes to `0x148efec4`.
+  - Width-compensating following `rbx`-keyed pcode reads through event 410 patches 295 operands and prints the target locally.
+  - Integrated as `try_patch_rbx_edx_source_lane`; saved-sample verification selected page `0x1ea000` and solved with `A=115`, `end=410`, `enc=0x331b15fa`, `n=295`.
+  - Focused regression passed for `round_new34`, `round_new16` (`rbx-eax`), `round_new10` (`rbx-r8`), `round_new30` (`rbx-rdi-or`), `round_new8` (`rbx-rdi`), `round_new12` (`rbx-ecx-mix`), and `round_new33` (`r9-rsi`).
+- New `round_new35` investigation:
+  - Live run after adding `rbx-edx` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `6b5964b735c8a5d41810e89aba5a485fbc7839afd8d95602d2fc307327dfec23`, preserved at `artifacts/round_new35/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages from the failed live run: `0x1e6000`, `0x1cd000`, and `0x25d000`..`0x265000`; existing families did not verify.
+  - Watchpoint on `main_rsp-0x4c` shows the earliest source-slot old-A write at native RVA `0x1613c5` / after-store RVA `0x1613cd`, with `ecx=0x3bbedbff` and updated `r8=0x1b8100382`.
+  - The real pcode source is event 118 on page `0x1e6000`, handler RVA `0x16134f`, pcode RVA `0x1e61e6`, old encoded operand `0x13a87f3d`.
+  - Handler formula: `ecx = enc ^ r8d; dec; neg; sub 0xfc3d6b01; rol 1; neg; rol 3; not`, then `xor r8, rcx`.
+- Fortieth `r8-ecx-cross` source family solved:
+  - The inverse gives Miku encoded operand `0xc1d77d69`.
+  - Single-page compensation on `0x1e6000` always crashes because the pcode lane continues into `0x1e5000`; a two-page guard trace over `0x1e5000..0x1e6fff` gives the correct interleaved order.
+  - The cross-page trace has a duplicate guard event for the same `0x154c2b` dword read crossing `0x1e5ffd..0x1e6000`; skip the second event (`mem=0x1e6000`) so the operand is compensated only once.
+  - Width-compensating the two-page lane through event 411 patches 292 operands and prints the target locally.
+  - Integrated as `try_patch_r8_ecx_crosspage_lane`; saved-sample verification selected page `0x1e6000` and solved with `A=118`, `end=411`, `enc=0xc1d77d69`, `n=292`.
+  - Focused regression passed for `round_new35`, `round_new29` (`r8-eax-long`), `round_new27` (`r8-r11`), `round_new34` (`rbx-edx`), `round_new33` (`r9-rsi`), and `live_round2` (`rsi-eax-alt-cross`).
+- New `round_new36` investigation:
+  - Live run after adding `r8-ecx-cross` solved round 1, then failed on round 2 before sending a patch; no remote rejection.
+  - Sample sha256 `25d684af77e43192a9dc4de788f507bbe6a4dd59a49db330aa9c1fbb3e24b5fc`, preserved at `artifacts/round_new36/sample.exe`.
+  - Target lane is Niku with `old_a=0x3bbedbff`, `desired=0x178efec4`, base delta `0x2c30253b`.
+  - Candidate pages from the failed live run: `0x69000`, `0x265000`, `0x62000`, `0x264000`, and `0x266000`..`0x26c000`; existing families did not verify.
+- Forty-first `r8-ebx-arith` source family solved:
+  - Source event is 108 on page `0x265000`, handler RVA `0x69fe7`, pcode RVA `0x265625`; it decodes into `ebx`, updates `r8`, and stores to `main_rsp-0x4c` at native RVA `0x6a02b` / watchpoint after-store RVA `0x6a033`.
+  - Handler formula: `ebx = enc ^ r8d; neg; lea ebx,[rbx + eax_const - 0x15fb8d0c]; not; ror ebx,1`, then `xor r8, rbx`. At the source event `eax_const=0xcd279c11`.
+  - Old encoded `0xad260def` decodes to `0x3bbedbff`; Niku encoded `0x65c5c665` decodes to `0x178efec4`.
+  - Width-compensating following `r8`-keyed pcode reads through event 411 patches 303 operands and prints the target locally.
+  - Integrated as the `r8-stack:ebx-arith` subfamily; saved-sample verification selected page `0x265000` and solved with `A=108`, `end=411`, `enc=0x65c5c665`, `n=303`.
+  - Focused regression passed for `round_new36`, `round_new35` (`r8-ecx-cross`), `round_new34` (`rbx-edx`), and `round_new29` (`r8-eax-long`).
+- New `round_new37` investigation:
+  - Live run after adding `r8-ebx-arith` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `3b2b4f7c6933e8d34d773ad25d15ce01e75b6e7247285586c5defeaaff4de1a3`, preserved at `artifacts/round_new37/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages from the failed live run: `0x1cf000`, `0x266000`, `0x1ce000`, `0xfc000`, `0x25f000`..`0x265000`, and `0x267000`; existing families did not verify. Generic `patch_from_trace` found something on `0x266000` but the patched binary exited 5.
+- Forty-second `r11-edx-decbswap` source family solved:
+  - Source event is 110 on page `0x266000`, handler RVA `0x1cf062`, pcode RVA `0x266bc1`; it decodes into `edx`, updates `r11`, and stores to `main_rsp-0x4c` at native RVA `0x1cf0a0` / watchpoint after-store RVA `0x1cf0a5`.
+  - Handler formula: `edx = enc ^ r11d; dec; bswap; not; xor 0x2eb5b300; xor r9_const`, then `xor r11, rdx`. At the source event `r9_const=0x0c` from the handler's `bl`.
+  - Old encoded `0x8f07beb2` decodes to `0x3bbedbff`; Miku encoded `0xb4228e9f` decodes to `0x148efec4`.
+  - Width-compensating following `r11`-keyed pcode reads through event 404 patches 294 operands and prints the target locally.
+  - Integrated as a second `try_patch_r11_edx_source_lane` subfamily; saved-sample verification selected page `0x266000` and solved with `A=110`, `end=404`, `enc=0xb4228e9f`, `n=294`.
+  - Focused regression passed for `round_new37`, `round_new36` (`r8-ebx-arith`), and `round_new24` (original `r11-edx`).
+- New `round_new38` investigation:
+  - Live run after adding `r11-edx-decbswap` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `c7ae94565a0a4b2bf70aeea29bbf7e81cab0736db187d6bae946cfffbf90bcbb`, preserved at `artifacts/round_new38/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages from the failed live run: `0x263000`, `0x1cb000`, `0xb2000`, `0x25d000`..`0x262000`, `0x264000`, and `0x265000`; existing families did not verify.
+- Forty-third `r9-r11` source family solved:
+  - Source event is 121 on page `0x263000`, handler RVA `0x1cb9fe`, pcode RVA `0x263561`; it decodes into `r11d`, updates `r9`, and stores to `main_rsp-0x4c` at native RVA `0x1cba72` / watchpoint after-store RVA `0x1cba7a`.
+  - Handler formula: `r11d = enc ^ r9d; dec; not; xor 0x7fceed1c; xor sign16(dx); inc; not; xor 0x68dc3176; xor adjusted_edi`, then `xor r9, r11`. For the source event `dx=0xa322`, so `adjusted_edi=0xffffa3de` after `neg dil`.
+  - Old encoded `0xaf23bfce` decodes to `0x3bbedbff`; Miku encoded `0x80139afd` decodes to `0x148efec4`.
+  - Width-compensating following `r9`-keyed pcode reads through event 418 patches 297 operands and prints the target locally.
+  - Integrated as the `r9-r11` subfamily inside `try_patch_r9_ecx_source_lane`; saved-sample verification selected page `0x263000` and solved with `A=121`, `end=418`, `enc=0x80139afd`, `n=297`.
+- Focused regression after adding `r9-r11` passed for `round_new38`, `round_new33` (`r9-rsi`), `round_new31` (`r9-ecx-sbb`), `round_new26` (`r9-eax`), and `round_new7` (`r9-ecx`).
+- New `round_new39` investigation:
+  - Live run after adding `r9-r11` failed on round 1 before sending a patch; no remote rejection.
+  - Sample sha256 `fa3e9abc8c3a323ef7346fbfdf3cfe1880542f05eddc7390ec63f09a471a1528`, preserved at `artifacts/round_new39/sample.exe`.
+  - Target is Miku with `old_a=0x3bbedbff`, `desired=0x148efec4`, base delta `0x2f30253b`.
+  - Candidate pages from the failed live run: `0x26b000`, `0x1d3000`, and `0x266000`..`0x26e000`; existing families did not verify.
+- Pivot to a unified solver per user direction:
+  - Do not add more per-family if/else branches for new handlers.
+  - Common semantic shape: a pcode read feeds a symbolic decode expression; a later `xor key, decoded` or source-slot store propagates the decoded low 32 bits. If that expression evaluates to the old rotor A under the old operand, solve it with Z3 for the desired rotor and compensate following pcode reads by the lane delta.
+  - Added `try_patch_unified_source_lane` as the first fallback after the old narrow `patch_from_trace`; old family-specific paths are retained only as temporary regression fallback while the unified path is validated.
+- Unified solver validation snapshot:
+  - Generic symbolic path solved `round_new38` as `r9^r11`, `round_new36` as `r8^rbx`, `round_new34` as `rbx^rdx`, and `round_new24` as `r11^rdx` without using their named inverters.
+  - It missed `round_new31` (`r9-ecx-sbb`), likely because the emulator still lacks enough flag semantics for the carry feeding `sbb`.
+- Unified solver update:
+  - Removed expensive generic store-expression probing; all confirmed useful families share the `key ^= decoded` semantic update.
+  - Fixed symbolic rotate/shift count handling in `scratch/sym_a_invert.py` by simplifying concrete BitVec counts before converting them.
+  - `generic_source_candidates` now tries both CF states, covering opaque flag producers before `adc`/`sbb`.
+  - The generic path now also solves `round_new31` as `r9^rcx`; saved coverage includes `r9^r11`, `r8^rbx`, `rbx^rdx`, `r11^rdx`, `r9^rcx`, and `rsi^r8` (`round_new39`).
+- Forty-fourth family not added: `round_new39` was solved by the unified symbolic path.
+  - Source event is 112 on page `0x26b000`, handler/update label `rsi^r8`, encoded Miku operand `0x7c040b51`, endpoint 402, 290 compensated operands.
+- Unified cross-page compensation:
+  - `round_new40` is the old `round_new8` cross-page `rbx-rdi` sample (sha256 `138cdd61fc2f79487024812062a98b8fa942253dfd528b056f05285d8ddd1e4a`).
+  - Single-page semantic candidate exists at event 120, but the lane crosses into the next page and includes a duplicate boundary read.
+  - Generic fix: skip overlapping duplicate operands during compensation, use a bounded endpoint list including 423, and try adjacent 2-page guard traces before legacy fallbacks.
+  - `round_new40` now solves generically as `rbx^rdi`, `A=120`, `end=423`, `enc=0xcb7ce82f`, `n=302`.
+- Live unified run status:
+  - Rounds 1-6 solved by the unified path with labels `rbx^r11`, `rsi^r11`, `rbp^rsi`, `rsi^r10`, `r11^rcx`, and `r11^r10`.
+  - Round 7 fell through to legacy `r8-stack:r9`, then the TCP send hit `BrokenPipeError`; likely the service timed out because the solver spent too long.
+  - Need improve unified coverage for `r8^r9` and avoid adjacent range traces on pages with no semantic candidate.
+- Unified emulator/performance update:
+  - Added a small concrete memory model and `xadd` semantics to `scratch/sym_a_invert.py`, so stack save/restore idioms are handled by the symbolic emulator.
+  - This makes `round_new41` solve generically as `r8^r9`, `A=111`, `end=409`, `enc=0x9f9e8334`, `n=298`.
+  - Added `trace_has_unified_candidate` so adjacent two-page range traces are only collected after a single-page trace has a real unified semantic candidate.
+- Unified `riz/eiz` fix:
+  - `round_new42` initially had no generic candidates even though event 111 at `rip=0xb96f0` clearly decoded old A into `ecx` and did `xor rsi, rcx`.
+  - Root cause was Capstone's no-index sentinel `riz` in operands like `[r9 + riz]`; `scratch/sym_a_invert.py` tried to read it as a real register and aborted before symbolic execution.
+  - Treating `riz/eiz` as zero makes the same saved sample solve generically as `rsi^rcx`, `A=111`, `end=409`, `enc=0x227cc12a`, `n=298`, target `b'Niku/ Mihu, zou `an `all#me Niku\n'`.
+  - Added generic endpoint priorities `430,429,411,410` and made Wine verifier timeout configurable with `RUN_SAMPLE_TIMEOUT` defaulting to 4 seconds. `round_new36` now solves generically as `r8^rbx` in about 8 seconds.
+- Unified stack/SizeOfImage fix:
+  - Live `round_new43` failed on round 2; preserved sample SHA-256 `88b3c8b173bed1d99be6022b2b7e40b281408f550119e35ffee4987edb05435c` at `artifacts/round_new43/sample.exe`, target Niku.
+  - The first source-slot old-A write was native RVA `0x1d326e`, pcode page `0x271000`, but `win_dbg_guard_verbose.py` hardcoded `image_end = image_base + 0x271000`, so pcode addresses at/above `0x271000` were logged as absolute addresses and could not be mapped.
+  - Fixed the guard logger to read PE `SizeOfImage`; trace `mem_rva` now normalizes correctly for high pcode pages.
+  - The handler at event 117 uses stack state (`pop r8`) before `xor rbp, rdx`; added stack snapshots to guard traces plus generic `push`/`pop` and byte-addressable memory in `scratch/sym_a_invert.py`.
+  - `round_new43` now solves generically as `rbp^rdx`, `A=117`, `end=424`, `enc=0x79246c17`, `n=307`, about 7 seconds through `solve_one`.
+  - Old named fallback block is disabled by default behind `ALLOW_LEGACY_FALLBACK=1`; unified path remains primary.
+- Unified unaligned stack read fix:
+  - Interrupted live run preserved round 8 as `artifacts/round_new44/sample.exe`, SHA-256 `a3429253a8e90305ac5a3e58342460d0834f4f5f28a500cb9f3e87d34dffb10a`.
+  - Target lane is `b'Xddv9-Bj~x##lbz#vla#vlco5`j#Xddv\n'`; `old_a=0x3bbedbff`, desired `0x018df1c9`, base delta `0x2a363a33`.
+  - r2 MCP/CLI pseudocode around native RVA `0x1cbcdf` shows the common semantic shape: load pcode dword into `eax`, mix in a stack dword (`edx -= dword [rsp + r9 - 0x5d3d7fcf]`), then `r8 ^= rax` before storing the decoded source value.
+  - Guard event 113 on pcode page `0x263000` has an unaligned stack read at `rsp+9`. The stack snapshot bytes decode to dword `0x1ac2802a`, but the emulator returned only the first byte `0x2a` because an exact byte entry shadowed the wider read.
+  - Fixed `scratch/sym_a_invert.py::read_mem` so exact entries are used only when they are at least as wide as the requested read; narrower exact entries now fall through to byte assembly.
+  - `round_new44` now solves generically as `r8^rax`, `A=113`, `end=407`, `enc=0x02cf18b9`, `n=294`; `solve_one` prints the target exactly with no new family-specific branch.
+- Unified dynamic key-delta fallback:
+  - New live round-1 sample SHA-256 `5137690bab20814a494700e33a782f677628047340b0441b1293f61be90a5fde`, preserved at `artifacts/live_round1.exe`, target Miku.
+  - r2 MCP/CLI pseudocode around native RVA `0x1cdf53` shows a normal source shape (`ecx = [pcode]`, `ecx ^= ebx`, `rbx ^= rcx`, store), and source-only patching event 106 writes desired A `0x148efec4`, proving the symbolic inverse is correct.
+  - Constant lane compensation fails because the changed A value propagates into VM state; by later events the `rbx` delta is no longer the original `0x2f30253b`.
+  - General fix: for long traces, seed all later operands with the lane mask without rejecting overlaps, run one bounded guard trace of that candidate, recompute each seen operand mask from the observed key-register delta (`orig_key ^ patched_key`), and verify short endpoint candidates.
+  - This solves the sample generically as `rbx^rcx`, `A=106`, `end=393`, `enc=0x656b438d`, `n=288`; no new per-family inverse was added.
+  - Focused post-change regressions pass: `round_new43` solves dynamically as `rbp^rdx`, and `round_new44` solves dynamically as `r8^rax`.
+- Unified 64-bit shift-count fix:
+  - Second live attempt failed on round 8 before sending a patch; saved as `artifacts/live_round8.exe`, SHA-256 `6a04ca7768ea4058c152bbb09434b0a66466503fc733b37a6b4ef22b249becb0`.
+  - Target lane from server log: `old_a=0x3bbedbff`, desired `0x1188e1cc`, target `b'Hats)(Ron}3&|gj&fiq&fisj%ez&Hats\n'`.
+  - Watchpoint source-slot write is native RVA `0x1cbd0c`; r2 MCP/CLI pseudocode shows pcode dword decoded into `edx`, then `rsi ^= rdx`, then `edx` stored to the source slot.
+  - Guard event 114 on page `0x1ec000` has the generic label `rsi^rdx`, but the emulator evaluated the decoded expression as `0x3badf1a4` instead of old A.
+  - Root cause: symbolic shift counts were always masked with `0x1f`; the handler executes `shr rcx, 0x2c`, which is a 64-bit shift and must mask with `0x3f`, so the real count is 44, not 12.
+  - Fixed `scratch/sym_a_invert.py` to mask shift counts with `0x3f` for 64-bit operands and `0x1f` otherwise.
+  - Focused regressions pass: `round_new43`, `round_new44`, and `live_round8`; `live_round8` now solves generically as `rsi^rdx`, `A=114`, `end=419`, `enc=0xd0fe18e4`, `n=299`.
+- Unified range-before-dynamic order:
+  - Fresh live attempt solved rounds 1-4, then stalled on round 5 while a single-page dynamic probe was attempted before an adjacent two-page range.
+  - Round 5 sample SHA-256 `e33d05b5cf2722e3f8ddc148fe1ed33767410e23444eec3e01f6cd19f8494420`, saved at `artifacts/live_round5.exe`; target `b'Teto5,Rsry3:`cj:zmq:zmsv9az:Teto\n'`.
+  - The deterministic adjacent range `0x265000+0x2000` solves it generically as `r10^rcx`, `A=121`, `end=421`, `enc=0x989fda68`, `n=299`.
+  - Reordered unified attempts to try deterministic single-page, deterministic adjacent range, then dynamic single-page (`allow_blind=False`) only if needed. This avoids repeated dynamic probes on cross-page candidates.
+  - Added bounded SSH/SCP timeouts and disabled ControlMaster for debugger transfers to avoid stale or hanging SSH/SCP calls.
+- Final solve:
+  - Old rotor A and original output were constant across samples, so `solve.py` now uses `OLD_A_CONST = 0x3bbedbff` and the known original output instead of running a separate keywatch and original Wine execution per round.
+  - Source page ordering now prioritizes likely pcode-pointer registers (`r9`, `r11`, `rdi`, `rsi`, ...) and defers `r8`/RIP-page artifacts; this reduced false first-page traces.
+  - Single-page guard traces default to 600 events; adjacent range traces use 460 events, which still covers all observed endpoints (`<= 430`).
+  - Final live run solved all 10 rounds with unified symbolic pcode inversion and compensation. Labels by round included `r8^r9`, `r11^rbx`, `r9^rax`, `r10^rbp`, `rdi^rdx`, `r9^r11`, `r8^rax`, `rdi^rdx`, `r9^r8`, and `rsi^rcx`.
+  - Server final:
+    `SEKAI{th3_fl4g_1s_th3_l1c3n5e3_w3_b4nn3d_al0ng_th3_w4y_https://imgur.com/a/HdsvLu3}`

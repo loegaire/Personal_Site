@@ -1,0 +1,1505 @@
+---
+title: "Cucumber Farm Audit Notes"
+description: "Challenge: cucumber farm, 500 pts, educational clicker-style web game. Root instancer: http://chal3.teagod.tech:8001/ CTFd instance token: [redacted instance token] Goal: recover the real challenge flag by f…"
+published: "2026-07-04"
+updated: "2026-07-05"
+event: "nohacknoctf"
+category: "Web Security"
+kind: "field-note"
+status: "reference"
+tags: ["Web Security", "nohacknoctf", "Field notes"]
+readingTime: 67
+wordCount: 14522
+featured: false
+sourcePath: "~/ctf/nohacknoctf/cucumber-farm/notes.md"
+---
+
+# Cucumber Farm Audit Notes
+
+## Scope And Objective
+
+- Challenge: `cucumber farm`, 500 pts, educational clicker-style web game.
+- Root instancer: `http://chal3.teagod.tech:8001/`
+- CTFd instance token: `[redacted instance token]`
+- Goal: recover the real challenge flag by finding the intended server-side weakness. Avoid relying on impractical grinding unless exploitation paths are exhausted.
+- No `AGENTS.md` found under the challenge parent tree.
+
+## Current Live Target
+
+- Working fresh instance as of 2026-07-05 13:05Z:
+  - `http://a3f8218313cf445597069328ca396ef70.chal3.teagod.tech:8001`
+- Working fresh instance as of 2026-07-05 08:41Z:
+  - `http://0d843a177ee24ccfafe2c771102726b90.chal3.teagod.tech:8001`
+- Working fresh instance as of 2026-07-05 03:16Z:
+  - `http://d0791564f1774aba86a8951da8082f980.chal3.teagod.tech:8001`
+- Working fresh instance as of 2026-07-05 02:20Z:
+  - `http://c280c9b9a57f4256ba27b808460b92180.chal3.teagod.tech:8001`
+- Working fresh instance as of 2026-07-05 02:00Z:
+  - `http://fb6db2358b154e6cb6615882902e3e220.chal3.teagod.tech:8001`
+- Working fresh instance as of 2026-07-05 01:36Z:
+  - `http://06144a5ea7744e2392acfce332e028b50.chal3.teagod.tech:8001`
+- Working fresh instance as of 2026-07-05 00:50Z:
+  - `http://dcb67a9895374b9abbb9108ac8e03c9b0.chal3.teagod.tech:8001`
+- Fresh instance created during the latest Playwright/body-error probes:
+  - `http://ecbb2bb465e14bda9883e1011ed514850.chal3.teagod.tech:8001`
+- Current instance as of 2026-07-05 00:15Z:
+  - `http://27448c0aecad42aea730ccef5446e5340.chal3.teagod.tech:8001`
+- Current instance as of 2026-07-04 22:03Z:
+  - `http://c4481572b8ef424aba64f64cdb8687d80.chal3.teagod.tech:8001`
+- Current instance as of 2026-07-04 21:12Z:
+  - `http://29a6cf7c9c86458e98cfb16edb6efc860.chal3.teagod.tech:8001`
+  - Destroy time: `2026-07-04T21:41:43.791329882Z`
+- Fresh instance used for the latest probes:
+  - `http://9764a8b6a4404961ad70a58d4f09a5080.chal3.teagod.tech:8001`
+- Immediately previous instance:
+  - `http://c0039f23a31c4945b3770de5787297160.chal3.teagod.tech:8001`
+  - Destroy time: `2026-07-04T21:11:50.737452301Z`
+- Previous rolled instance:
+  - `http://ececfdee773942a0b320e5becdb35ecf0.chal3.teagod.tech:8001`
+  - Destroy time: `2026-07-04T20:42:50.483751589Z`
+- Earlier rolled instance:
+  - `http://cdf361f9175e4e9ab13ebd39422015160.chal3.teagod.tech:8001`
+  - Destroy time: `2026-07-04T20:10:25.861225688Z`
+- Previous instances have expired or were rolled: `fc726...`, `385...`, `dabc...`, `b6c...`, `f204...`, `5abb...`, `e1...`, `dcbc...`, `fed3...`.
+- Refresh/create command:
+
+```bash
+curl -b scratch/instancer.cookies -c scratch/instancer.cookies http://chal3.teagod.tech:8001/
+curl -b scratch/instancer.cookies -c scratch/instancer.cookies -X POST \
+  http://chal3.teagod.tech:8001/create \
+  --data-urlencode 'token=[redacted instance token]' \
+  --data-urlencode 'captcha='
+```
+
+## Application Summary
+
+- Server header: `SimpleHTTP/0.6 Python/3.13.14`.
+- Static app files:
+  - `/` -> HTML
+  - `/game.js`
+  - `/styles.css`
+  - `/Mutsumi.ico` is actually a JPEG.
+- `/robots.txt` discloses `Disallow: /.history`.
+- `/.history` is a flat changelog, not a directory. Key entries:
+  - 2026-01-05: backend validation added.
+  - 2026-01-15: modularized into `/game`, `/static`, `/data`.
+  - 2026-01-18: save feature added.
+  - 2026-03-08: `WELCOME` redeem code grants 10000 cucumbers.
+  - 2026-03-24: event system added.
+- HTML/CSS/JS contain prompt-injection-style warning comments. Treat as noise.
+
+## API Inventory
+
+Known routes from JS and actual browser traffic:
+
+- `GET /api/state`
+- `POST /api/click`
+- `POST /api/buy-upgrade`
+- `POST /api/buy-badge`
+- `POST /api/buy-consumable`
+- `POST /api/trigger-event`
+- `POST /api/redeem-code`
+- `POST /api/save`
+- `POST /api/load`
+- `POST /api/reset`
+
+Authentication/state:
+
+- `GET /api/state` sets `cc_session` and returns an `actionToken`.
+- Mutation requests require `X-Action-Token`.
+- Successful mutations rotate the action token.
+- Missing/invalid-token responses return a fresh token, but only the newest token is valid.
+- Invalid-token `POST /api/<anything>` returns a full JSON state with 409 before route validation, so invalid-token fuzzing gives false positives for unknown endpoints. Re-test candidate routes with a valid token to distinguish real handlers.
+- `cc_session` is opaque server-side state. Chosen or unknown session IDs are replaced with fresh sessions.
+
+Actual UI button traffic captured with Playwright/Caido:
+
+- Harvest button -> `POST /api/click`, no body.
+- Redeem button with `WELCOME` -> body `{"code":"WELCOME"}`.
+- Upgrade button -> `POST /api/buy-upgrade`, body `{"id":"seed-pouch"}`.
+- Badge button -> `POST /api/buy-badge`, body `{"id":"water-badge"}`.
+- Upgraded-after-unlock purchase still uses only `{"id":"sprinkler"}`.
+- Consumable button -> `POST /api/buy-consumable`, body `{"id":"cucumber-water"}`.
+- Save button -> `POST /api/save`, no body, `Accept: application/octet-stream`.
+- Load button -> `POST /api/load`, `Content-Type: application/octet-stream`, request body exactly the `.bak` bytes.
+- Reset button -> `POST /api/reset`, no body.
+- Random frontend events observed -> `{"id":"boom"}`, `{"id":"tired-hands"}`, `{"id":"cat-keyboard"}`.
+- Fresh Playwright capture on 2026-07-05 also confirmed:
+  - the frontend polls `GET /api/state` every second;
+  - `maybeForgeClientEvent()` can auto-submit `POST /api/trigger-event` without a user click when the client-side roll fires;
+  - an actual auto-fired request was captured as `{"id":"hacker"}`.
+- Full live catalog closure from captured state/response JSON:
+  - exactly `21` upgrades;
+  - exactly `17` badges;
+  - exactly `4` consumables: `cucumber-water`, `stretch-ticket`, `focus-snack`, `flag-cucumber`;
+  - every badge only unlocks or boosts an upgrade path; no badge touches consumables or lowers the `flag-cucumber` gate.
+- Conclusion: no hidden client fields for cost, count, unlock, balance, amount, or effect.
+
+## Flag Gate
+
+- `flag-cucumber` is listed as a consumable:
+  - Cost: `99999999999999999999` (`~1e20`)
+  - Effect: `{"type":"revealFlag"}`
+- No client-side reveal code exists in `game.js`; `revealFlag` appears only in server-returned JSON data.
+- Direct purchase with spoofed fields is rejected by server-side balance checks.
+
+## Save/Load Backup Format
+
+Observed `/api/save` response:
+
+- Response is an ASCII hex string.
+- Decode chain:
+  - outer hex -> ASCII string
+  - ASCII string is `<base64(pickle bytes)> + <64 hex digest>`
+  - base64 payload decodes to Python pickle protocol data for a dict.
+- Pickle keys include:
+  - `cucumbers`, `totalHarvested`, `totalClicks`
+  - `startedAt`, `lastUpdate`
+  - `owned`, `badges`, `consumables`, `redeemedCodes`, `achievements`
+  - `fatigue`, `lastFatigueUpdate`, `lastClickAt`
+  - `activeEvents`, `eventCooldowns`, `nextEventRoll`
+- Fresh downloaded sample from the live UI:
+  - file: `.playwright-mcp/Mutsumi-Farm-20260705-003648.bak`
+  - outer size: `1376` bytes
+  - post-hex stage size: `688`
+  - decoded pickle size: `516`
+- Timestamp representation is mixed in the saved pickle:
+  - `startedAt`, `lastUpdate`, `lastFatigueUpdate`, `nextEventRoll`, and `eventCooldowns[...]` are epoch-like floats;
+  - ordinary live-play saves can store `lastClickAt` on a different clock domain entirely (observed `46080.390808115` in the sample above), so it is not simply another Unix timestamp.
+- The decoded live-play sample stored:
+  - `owned = {'seed-pouch': 1, 'sprinkler': 1}`
+  - `badges = {'water-badge': 1}`
+  - `consumables = {'cucumber-water': 1}`
+  - `redeemedCodes = {'WELCOME': True}`
+  - `eventCooldowns = {'hacker': 1783212266.7707353}`
+- No obvious mutable-container aliasing in that sample:
+  - `owned is badges` -> `False`
+  - `owned is consumables` -> `False`
+  - `activeEvents is eventCooldowns` -> `False`
+- Broader backup object-graph audit on 2026-07-05 (`dumps/backup_graph_audit_20260705.txt`) stays consistent with that narrow sample:
+  - across current, welcome, upgrade, event, and Playwright-saved backups, the repeated identities are only primitive/interned values such as:
+    - `0` shared by `totalClicks` / `fatigue` in empty saves,
+    - `True` shared by `redeemedCodes.WELCOME` and the unlocked achievement booleans,
+    - small-count integers shared across `owned` / `badges` / `consumables`,
+    - the string `"boom"` shared between an active-event entry and the `eventCooldowns` key.
+  - no shared mutable top-level containers (`dict`/`list`) were found beyond those primitive-value identities, so a pickle aliasing bug is currently not supported by the saved object graphs.
+- Original backups load successfully and rotate the action token.
+- Modified pickle with reused digest fails with `存檔讀取失敗。`.
+- Malicious pickle with `time.sleep(4)` plus bad digest returns quickly, so digest is checked before unpickle.
+- Old signed backups replay across new instances, so `.bak` files are portable challenge-wide signed state, not in-memory save handles.
+- Exact-object repickle retest in `scratch/probe_backup_semantic_equivalence.py` / `dumps/backup_semantic_equivalence.txt`:
+  - re-pickling the exact same Python object with protocols 0-4 or `pickletools.optimize()` and reusing the original digest always fails.
+  - correction from 2026-07-05:
+    - the saved backups themselves are protocol `5` (`pickle.HIGHEST_PROTOCOL == 5` here),
+    - and re-pickling the exact decoded object with protocol `5` reproduces the exact original raw pickle bytes byte-for-byte for the tested backups;
+    - this means the earlier note that "exact-object repickle always fails" was too strong.
+  - however, semantic-only variants still fail:
+    - reordering top-level keys in the decoded dict and re-pickling with protocol `5` changes the raw pickle bytes and is rejected with `存檔讀取失敗。`;
+    - reversing nested dict insertion order in the `WELCOME` backup is also rejected.
+  - current assessment remains that the verifier is effectively authenticating the exact decoded pickle byte stream after lenient hex/base64 decoding, not merely the semantic Python object.
+
+Backup parser behavior:
+
+- Accepted without changing decoded pickle bytes:
+  - uppercase outer hex
+  - whitespace in outer hex
+  - whitespace/nonalphabet bytes in base64 text
+  - extra base64 `=`
+  - whitespace/bang before digest
+- Rejected:
+  - adding any real decoded pickle byte
+  - removing base64 padding
+  - inserting valid base64 chars that alter decoded bytes
+- Conclusion: verifier checks the decoded pickle bytes after permissive base64/hex decoding.
+
+MAC/signature tests already failed:
+
+- Not plain MD5/SHA1/SHA256/SHA3/BLAKE2 over raw/base64/hex payloads.
+- Not HMAC-SHA256 or simple prefix/suffix/sandwich SHA256 with:
+  - current `cc_session`
+  - action tokens
+  - app strings, image metadata, challenge tokens
+  - 10k common passwords
+  - 100k NCSC common passwords
+  - 11,344 visible app strings from README/HTML/JS/CSS/history/state JSON
+- SHA-256 length extension classifier failed for key lengths 0-96.
+- Transport-hardened length-extension follow-up on 2026-07-05 also stays negative for key lengths `97-256`:
+  - updated script: `scratch/probe_length_extension.py`
+  - output: `dumps/e1_length_extension_97_256_20260705.txt`
+  - methodology improvement:
+    - connect directly to `160.30.99.158:8001` while preserving the live instance hostname in `Host:`;
+    - reuse one session to avoid the earlier DNS / repeated-session churn that made the abandoned longer pass noisy.
+  - result:
+    - every tested `key_len` from `97` through `256` returns the ordinary `200` JSON failure `存檔讀取失敗。`;
+    - no forged backup was accepted.
+  - implication:
+    - the simple `SHA256(secret || raw_pickle)` length-extension family is now negative for key lengths `0-256`, not just `0-96`;
+    - unless the signer uses an unusually long secret beyond that range, this specific prefix-MAC hypothesis is substantially weakened.
+- Controlled backup differentials in `scratch/probe_backup_differential.py` / `dumps/backup_diff/probe_output.txt`:
+  - repeated saves with the same visible balances still differ because timestamp fields change;
+  - small state changes avalanche the 256-bit digest;
+  - digest did not match SHA-256 over raw pickle, base64 text, outer hex, `repr(obj)`, `str(obj)`, or sorted JSON.
+- Digest verifier behavior in `dumps/backup_digest_validation_probe.txt`:
+  - lowercase full digest is required;
+  - uppercase digest, first/last nibble edits, and all tested prefix-only variants fail;
+  - whitespace before the digest is accepted only because it is treated as ignored base64 payload text and does not alter decoded pickle bytes.
+- Targeted metadata-derived MAC check using `Mutsumi.ico` IPTC values (`itsneversun`, dates, IPTC digest) plus HMAC, prefix/suffix, SHA-512 truncation, and keyed BLAKE2 variants did not match.
+- Expanded last-resort visible-string formula audit in `scratch/probe_more_mac_formulas.py` / `dumps/more_mac_formulas.txt` checked 16,930 local/theme strings against multiple samples and did not match:
+  - HMAC with MD5/SHA1/SHA2/SHA3/BLAKE2 families, including SHA-512 truncation;
+  - prefix/suffix/sandwich/delimited layouts;
+  - keyed BLAKE2s/BLAKE2b-32;
+  - one-iteration PBKDF2 variants.
+- Additional CTFd-token derivation checks on 2026-07-04 did not match either:
+  - full token string;
+  - token hex tail as ASCII;
+  - raw bytes decoded from the hex tail;
+  - SHA1/MD5/SHA256 digests of those forms used as binary keys.
+- Structured two-atom challenge/theme/token combination sweep in `scratch/probe_structured_key_combos.py` / `dumps/structured_key_combos.txt` also found no match across three samples.
+- Expanded structured combo sweep in `dumps/structured_key_combos_v2.txt` added 1-3 atom combinations over:
+  - user/team identifiers (`1497`, `856`, `hajjilla`, `ite25`);
+  - author/theme handles (`viivie`, `viivie560`, `viivie560@gmail.com`, `viivie._.shark_`, `itsneversun`, `mutsumi`, `wakaba`, `furina`);
+  - challenge words (`cucumber`, `farm`, `cucumber-farm`, `flag-cucumber`, `welcome`, `ctfd`, `chal3`, `teagod`, `ic3dt3a`, `nohacknoctf`);
+  - separators `''`, `-`, `_`, `:`, `|`,
+  - plus raw/sha256/sha1/md5-derived keys across HMAC/prefix/suffix/sandwich/BLAKE2 formulas.
+  - Result: no match across three backup samples.
+- Extended non-keyed digest transforms also failed: double hashes, reversed digest bytes, SHA-512/SHA-384 truncation, BLAKE2b-32, CRC/adler padding/repetition over raw/base64/hex/repr/JSON forms.
+- Canonical re-pickle signature bypass is now substantially weakened:
+  - `scratch/probe_canonical_pickle_signature.py` / `dumps/canonical_pickle_signature_20260705.txt` tried malicious pickles whose `__reduce__` returns `eval(repr(original_obj))`, preserving the semantic dict while changing the raw pickle bytes;
+  - reusing the original digest still fails cleanly with `存檔讀取失敗。` across pickle protocols `0`, `2`, `4`, and `5`;
+  - this points away from a verifier that signs only the post-unpickle semantic object and back toward one that authenticates the exact raw decoded pickle bytes (or something equivalently close).
+- Narrow higher-iteration PBKDF2 signature follow-up is also negative:
+  - `scratch/probe_pbkdf2_signature.py` / `dumps/pbkdf2_signature_probe_20260705.txt` tested high-signal challenge/author/token/user/team strings as candidate keys;
+  - message layers covered the raw pickle bytes, base64 stage text, and outer hex wrapper;
+  - orientations `pbkdf2_hmac(sha256, msg, key, iters)` and `pbkdf2_hmac(sha256, key, msg, iters)` were checked for iteration counts `100, 1000, 5000, 10000, 20000, 50000, 100000, 200000`;
+  - result: `no match` across the multi-sample set.
+- CTFd challenge-page signer family follow-up on 2026-07-05 is also negative:
+  - new probe script: `scratch/probe_ctfd_page_keys.py`
+  - output: `dumps/ctfd_page_key_probe_20260705.txt`
+  - rationale:
+    - earlier visible-string sweeps were centered on the live farm app and public author pages, but not the official CTFd challenge-page content itself;
+    - this pass harvested strings and tokens from `dumps/ctfd_challenge17_auth.json`, including:
+      - the full description text `I love Mutsumi, and she likes eating cucumbers...`
+      - the embedded GIF URL and filename/stem `6a10a59affc2898f06f6fff7943c6091(.GIF)`
+      - `viivie`, `dynamic`, `17`, `500`, `http://chal3.teagod.tech:8001/`
+      - the stock dynamic `type_data` and embedded `view` HTML text/tokens
+    - the same HMAC/prefix/suffix/sandwich/hash-derived/keyed-BLAKE2 family was checked across three backup samples and four message layers.
+  - result:
+    - `keys 1020`
+    - `checked 6120`
+- Public-file-bytes signer follow-up on 2026-07-05 is also negative:
+  - script: `scratch/probe_public_file_keys.py`
+  - output: `dumps/public_file_key_probe_20260705.txt`
+  - tested candidate keys derived from whole public local artifact bytes, not just visible strings:
+    - raw bytes of `game.js`, `styles.css`, `current_root.html`, `.history`, `ctfd_challenge17_auth.json`, and `Mutsumi.ico`;
+    - MD5/SHA1/SHA256 digest bytes of those files;
+    - MD5/SHA1/SHA256 hex encodings of those file digests.
+  - message layers covered the decoded raw pickle bytes, base64 payload text, full stage text, and outer hex wrapper.
+  - keyed families checked:
+    - HMAC-SHA256;
+    - HMAC-SHA1 padded/truncated to 64 hex chars;
+    - HMAC-SHA512 truncated to 64 hex chars;
+    - SHA256 prefix/suffix secret layouts;
+    - keyed BLAKE2b-32 and BLAKE2s-32.
+  - result:
+    - `no match`
+    - `keys 42`
+    - `checks 504`
+    - `no match`
+  - interpretation:
+    - the backup signer key is probably not a straightforward string lifted from the official CTFd challenge page or its embedded GIF reference.
+- Password/key guessing is considered last resort per user direction.
+
+## Server-Side Validation Findings
+
+Request spoofing and mass assignment:
+
+- `/api/click` ignores `amount`, `clicks`, `gain`, `perClick`.
+- Huge integers, `NaN`, and `Infinity` in click bodies produce one normal click.
+- Buy endpoints ignore client-supplied `cost`, `effect`, `count`, `canBuy`, `unlocked`, `level`, `cucumbers`, `totalHarvested`.
+- Direct locked/expensive purchases are blocked server-side.
+- Targeted hidden catalog ID probe against buy-consumable, buy-upgrade, and buy-badge found only normal lookup failures (`找不到這個道具/物品/徽章。`); no hidden cheap flag item, upgrade, or badge was found in the high-signal set.
+- Duplicate JSON keys behave like Python JSON parsing: last key wins. This only changes which real ID is selected.
+- Non-string IDs, arrays, objects, `null`, numbers, booleans, NUL-containing IDs, case variants, and space variants fail safely.
+- Form/text/no-content-type variants do not bypass price/unlock checks.
+
+Headers and routing:
+
+- Host and `X-Forwarded-*` spoofing did not bypass pricing or time checks.
+- Cookie/header duplicate parsing is now bounded:
+  - `scratch/probe_cookie_duplicate.py` / `dumps/ecec_cookie_duplicate.txt` shows duplicate `cc_session` cookies are resolved as effective last-occurrence-wins;
+  - raw-socket retest on 2026-07-05 shows duplicate `X-Action-Token` headers are resolved as effective first-occurrence-wins;
+  - mixing those two behaviors only yields ordinary session/token mismatches and clean `409 動作已過期` responses, not cross-session action confusion.
+- Host-based debug/source/flag checks with `Host: 127.0.0.1`, empty Host, `chal3.teagod.tech`, and `X-Forwarded-*` local headers only returned 404s. Non-instance Host values hit a different plain-text 404 handler, but exposed no routes.
+- Alternate public challenge ports on the same resolved host do not route the cucumber instance even with an explicit cucumber `Host` header:
+  - direct probes to `160.30.99.158:8000` and `:9000` with `Host: 06144...chal3.teagod.tech:8001` stay on the unrelated `Homework` and `Confused Component` services;
+  - `/api/state`, `/robots.txt`, and `/.history` there remain ordinary `404 page not found`.
+- Future `Date`, `X-Date`, `X-Forwarded-Date`, `X-Now`, `X-Timestamp` did not mint future CPS.
+- Unsupported methods (`PUT`, `PATCH`, `DELETE`, `OPTIONS`, `TRACE`) return normal `SimpleHTTP` 501/404 behavior.
+- Method override headers do not change routing.
+- Known endpoint path variants did not bypass:
+  - suffixes
+  - query strings
+  - matrix params
+  - `%2f`
+  - trailing slash/dot
+  - `/api/buy-consumable/../buy-consumable` normalizes to the real endpoint but still enforces price.
+- 2026-07-04 valid-token path variant probe in `scratch/probe_known_path_variants_valid.py` / `dumps/ecec_known_path_variants_valid.txt`:
+  - exact endpoints work;
+  - `//api/<endpoint>`, `/api/./<endpoint>`, and `/api/x/../<endpoint>` normalize to the same handler and enforce normal logic;
+  - trailing slash, `/.`, `/..`, `/x`, `%2f`, matrix params, `.json`, and literal query-string paths return real 404s with a valid token.
+- Caido raw path probes on 2026-07-04 confirmed:
+  - `/api/../game.js` and `/api/%2e%2e/game.js` normalize to `/game.js`;
+  - `/static/%2e%2e/.history` normalizes to `/.history`;
+  - traversal attempts to `/../../proc/self/maps` and encoded equivalents return 404;
+  - double-encoded traversal (`%252e%252e`, `%252f`) and overlong slash variants also return normal 404s;
+  - `Range` is ignored by the static handler for known files and does not enable `/proc/self/maps` reads;
+  - `/.history%00.py` still causes an empty 502, while double-encoded `%2500` returns normal 404.
+  - `%00` is a universal parser crash (`/no-such-file%00.py`, `/game.js%00.py`, `/api/state%00.py` all 502), not an existence oracle.
+  - absolute-form requests and unusual slash/backslash/dot variants did not bypass root confinement.
+- Fresh 2026-07-04 query-string behavior in `scratch/probe_state_query_token_scope.py` / `dumps/c003_state_query_token_scope.txt`:
+  - static files ignore real query strings normally (`/game.js?x=1` still 200);
+  - `GET /api/state?x=1` returns a real 404 HTML page instead of JSON;
+  - this suggests exact API route matching on the raw request target, while static file serving strips the query part.
+- Transfer-encoding parsing is quirky but has not yielded a spoofing win:
+  - raw chunked `POST /api/click` still succeeds because the endpoint ignores its body;
+  - raw chunked `POST /api/redeem-code` and `POST /api/buy-upgrade` both return ordinary `200` error responses as if the JSON body were missing (`請輸入兌換碼。` / `找不到這個物品。`);
+  - adding `Content-Length` alongside `Transfer-Encoding: chunked` with inner-length, chunked-length, or zero-length values did not change that behavior;
+  - a chunk-body smuggle probe carrying an entire inner `POST /api/click` request produced only one outer `200` response (`dumps/chunked_smuggle_probe_20260705.bin`), so no request-smuggling execution was observed.
+  - `POST /api/load` on the same TE+CL path is also body-blind:
+    - immediate send, pause-after-headers, and pause-after-chunk-size variants all return ordinary `200` JSON with `沒有選擇存檔。`;
+    - visible state stays unchanged, so this does not create a second rollback primitive.
+  - additional header-shape follow-up on 2026-07-05 is still negative for exploitation, but clarifies parser ownership:
+    - `Transfer-Encoding : chunked` is rejected by the front side with `400 Bad Request: invalid header name`;
+    - `Transfer-Encoding:\tchunked` reaches the backend and behaves like the earlier body-missing cases (`200` JSON, `請輸入兌換碼。`);
+    - standard/uppercase `Transfer-Encoding: chunked` combined with a conflicting `Content-Length` can yield an empty `502 Bad Gateway`;
+    - that `502` path still consumes the action token without changing state:
+      - a same-token follow-up immediately returns ordinary `409 stale token`;
+      - the visible state remains unchanged;
+      - when the TE body is paused mid-request, the token is already burned before body completion, so concurrent same-token actions lose with ordinary `409`.
+  - dedicated backend-poison follow-up in `scratch/probe_te_backend_poison.py` / `dumps/te_backend_poison_20260705.txt` further bounds the TE+CL branch:
+    - after sending only the outer headers and waiting `0.35s`, no response bytes were yet visible on the client socket (`preBodyPeekLength = 0`), but a separate `GET /api/state` already minted the next token;
+    - smuggling any of the following as the chunked body failed to execute:
+      - `GET /.history`
+      - `POST /api/click` with the fresh mid-flight token
+      - `POST /api/redeem-code` with `{"code":"WELCOME"}` and the fresh mid-flight token
+    - on the same client socket, the next literal follow-up request `GET /robots.txt` received the normal `robots.txt` response as the second HTTP response, not a poisoned or shifted response;
+    - final visible state stayed unchanged in all three cases.
+- Duplicate `Content-Length` parsing is also now bounded:
+  - identical duplicate lengths on `POST /api/click` are accepted and behave like one ordinary click;
+  - conflicting duplicate lengths (`0` vs longer body, in either order) are rejected up front with plain-text `400 Bad Request` before any state change;
+  - this points to the front proxy rejecting the conflicting case before it reaches the Python backend, not a usable CL.CL desync.
+- `/api/save` does not rotate the current action token, but reusing it afterward only gives one normal mutation and then rotates.
+
+Race and token behavior:
+
+- 100 concurrent same-token purchases produced exactly one success; token rotation prevents simple double-spend.
+- 100 concurrent same-token `WELCOME` redemption attempts produced exactly one success; no multi-redeem race.
+- Paused-body same-token `WELCOME` batching is also bounded (`scratch/probe_slow_redeem_batch.py` / `dumps/slow_redeem_batch_20260705.json`):
+  - `8`, `16`, and `32` delayed same-token `redeem-code(WELCOME)` requests on fresh sessions still yield only one real redeem success total;
+  - the rest return the ordinary `這組兌換碼已經使用過。` state, with a few stale-token `409` responses only at the largest batch.
+  - final live state/save remain the ordinary single-`WELCOME` `10000`-cucumber snapshot.
+- `scratch/probe_click_event_race.py` / `dumps/ecec_click_event_race.txt`:
+  - 100 concurrent same-token `/api/click` requests -> exactly one success, 99 stale-token conflicts;
+  - 100 concurrent same-token `cat-keyboard` event requests -> exactly one success, 99 stale-token conflicts.
+- Invalid-token responses mint a new token, but only the latest minted token survives. No pool of parallel tokens.
+- Fresh cross-session scope test in `scratch/probe_state_query_token_scope.py` / `dumps/c003_state_query_token_scope.txt`:
+  - separate sessions hold distinct concurrently valid action tokens;
+  - using session A's fresh token on session B fails with `動作已過期，請再試一次。`;
+  - action tokens are session-bound, not a global mutation stream.
+- `scratch/probe_parallel_state_tokens.py` / `dumps/parallel_state_tokens.txt`:
+  - 20 concurrent `GET /api/state` requests against the exact same `cc_session` all returned the same single action token;
+  - validating that token through `/api/save` succeeded, so one farm state does not accumulate a pool of parallel tokens via repeated state fetches.
+- Focused malformed-body race family in `scratch/probe_malformed_race.py` / `dumps/malformed_race_20260705.txt`:
+  - pairing malformed top-level JSON array/string bodies that normally trigger empty `502` responses against real same-token actions does not create mixed state;
+  - tested pairs:
+    - malformed buy-upgrade array vs `click`
+    - malformed buy-upgrade string vs `redeem-code(WELCOME)`
+    - malformed buy-upgrade array vs valid `buy-upgrade(seed-pouch)`
+    - malformed buy-consumable string vs valid `trigger-event(cat-keyboard)`
+  - outcome across the set:
+    - the valid action either succeeds normally while the malformed side loses with `409 stale token`,
+    - or the malformed side still returns an empty `502` while the valid side succeeds normally;
+    - final persisted state always matches the single valid action only.
+  - conclusion: malformed request handling does not appear to partially mutate state before token invalidation.
+- Older `scratch/probe_cross_endpoint_races.py` final-state snapshots are not reliable evidence:
+  - the script fetched its `after` state with a fresh session when no cookie was passed, so `dumps/c448_cross_endpoint_races.txt` can misrepresent the post-race state;
+  - use the same-cookie follow-up artifact `dumps/c448_race_followup.txt` instead.
+- HTTP/1.1 pipelining with two same-token actions on one TCP connection is also negative:
+  - `dumps/pipeline_same_token_20260705.txt` shows `click`, `redeem-code(WELCOME)`, and `buy-upgrade(seed-pouch)` each return `200` for the first request and `409` for the second;
+  - `dumps/pipeline_click_raw_20260705.bin` confirms the raw stream contains two normal HTTP responses, not a parser-desync win.
+- `scratch/probe_load_purchase_races.py` / `dumps/load_purchase_races_20260705.txt` rules out `load(pre-spend signed snapshot)` as a free-purchase primitive:
+  - raced `load(pre-spend)` against `buy-upgrade(seed-pouch)`, `buy-badge(water-badge)`, and `buy-consumable(cucumber-water)` with the same token;
+  - outcomes split cleanly into either the purchase winning with the normal spent state, or the load winning with the original pre-spend snapshot restored;
+  - no item duplication, no balance restoration with purchased items retained, and no useful coexistence of branch tokens was observed.
+- `scratch/probe_redeem_load_followup_safe.py` / `dumps/redeem_load_followup_safe_20260705.txt` closes the remaining `redeem(WELCOME)` vs `load(empty backup)` branch:
+  - across 30 safe follow-up attempts, status pairs were only `(200,409)` or `(409,200)`;
+  - when redeem won, the fresh state/save was the ordinary `10000`-cucumber `WELCOME` snapshot and both loser/follower tokens were stale;
+  - when load won, the fresh state/save was the ordinary empty snapshot and the losing redeem-side error token simply matched that empty live state;
+  - no surviving alternate 10000-credit branch was found.
+- `scratch/probe_state_progress_race.py` / `dumps/state_progress_race_20260705.txt` weakens the `GET /api/state` passive-income race idea:
+  - a prepared `87 CPS` farm was allowed to idle for `2.5s`, then compared under a single read vs `20` concurrent same-cookie reads;
+  - both final deltas track elapsed wall time, not the number of reads;
+  - the concurrent burst produced progressively newer read snapshots during the burst, but no multiplied passive accrual.
+- Queued invalid same-token mutations after an idle period are also negative for passive-income duplication (`scratch/probe_idle_passive_duplication.py` / `dumps/idle_passive_duplication_20260705.txt`):
+  - prepared farm: `11` sprinklers + `water-badge Lv.4`, baseline `cps = 57.75`;
+  - after idling `3.0s`, `16` paused-body same-token invalid `buy-upgrade({"id":"definitely-missing-upgrade"})` requests were released together;
+  - the first wave of responses clustered around `~802-804` cucumbers from a `598.6` baseline, which matches one ordinary `3s` passive update plus small processing-time drift;
+  - final state rose only to `819.88`, consistent with normal elapsed wall time, not `16x` duplicated passive accrual.
+  - conclusion: admitted invalid mutations do not repeatedly apply the same idle CPS delta.
+- Slow-body `/api/load` timing on 2026-07-05 (`scratch/probe_slow_load_token_timing.py` / `dumps/slow_load_token_timing_20260705.txt`) exposes a real ordering quirk but not a profitable branch:
+  - start from a valid token, begin uploading a signed `.bak`, pause mid-body, then spend the same token on a normal action;
+  - tested actions `redeem-code`, `buy-upgrade`, `buy-badge`, and `buy-consumable` all returned ordinary `200` success/error responses while the slow `load` was still paused;
+  - the slow `load` then also returned `200 已載入存檔。` and the final visible state/save matched the loaded snapshot, not the action branch;
+  - focused follow-up shows the action-side returned token becomes stale after the load completes, so no persistent alternate branch token survived.
+- Stronger paused-load follow-up in `scratch/probe_paused_load_branch_save.py` / `dumps/paused_load_branch_save_20260705.txt` confirms a real rollback-plus-snapshot primitive:
+  - begin a slow authenticated `POST /api/load` using an older signed backup and pause the upload mid-body;
+  - while that body is paused, spend the old token on one or more real actions, follow the rotated token chain on that transient branch, and call `POST /api/save`;
+  - the resulting save is a valid signed backup of the richer transient branch;
+  - after the paused load body is completed, the live session rolls back to the loaded snapshot.
+  - confirmed branch-save cases:
+    - `redeem(WELCOME)` -> saved backup contains `cucumbers: 10000` and `redeemedCodes: {"WELCOME": true}`, while the final live state/save returns to empty;
+    - `redeem(WELCOME)` + `buy-upgrade(seed-pouch)` -> saved backup contains `cucumbers: 9992` and `owned: {"seed-pouch": 1}`, while the final live state/save returns to empty;
+    - `redeem(WELCOME)` + `trigger-event(cat-keyboard)` -> saved backup contains `cucumbers: 10040`, `totalClicks: 40`, and the cat cooldown, while the final live state/save returns to empty.
+  - current assessment:
+    - this is a real signed-snapshot extraction bug;
+    - it preserves alternate valid states, but no merge/duplication path into the live session is known yet.
+- Double-paused-load follow-up in `scratch/probe_double_paused_loads.py` / `dumps/double_paused_loads_20260705.txt` tightens the request-admission model:
+  - two separate paused-body `/api/load` requests admitted under older tokens can both later succeed, even after intervening actions and token rotation;
+  - example family:
+    - start `L1 = load(empty)` on token `t0`;
+    - redeem `WELCOME` on `t0` to get `t1`;
+    - start `L2 = load(welcome)` on `t1`;
+    - optionally buy `seed-pouch` on `t1` to get `t2`;
+    - release `L1` then `L2`, or `L2` then `L1`.
+  - observed behavior:
+    - both paused loads return `200 已載入存檔。` even when their header tokens are stale by release time;
+    - the final live state is simply the snapshot from the last released load (`welcome` if `L2` last, `empty` if `L1` last);
+    - the post-`L2` seed purchase in the test does not survive, because the later load cleanly overwrites it.
+  - conclusion:
+    - for held-open loads, token acceptance effectively happens at request admission, not at final body completion;
+    - this expands the rollback primitive but still has not produced a merge or additive-economy state.
+- Slow-body ordinary JSON mutation timing is also now bounded (`scratch/probe_slow_mutation_timing.py` / `dumps/slow_mutation_timing_20260705.txt`):
+  - pausing one authenticated JSON mutation mid-body while sending a second same-token mutation can produce two `200` successes;
+  - however the final state matches ordinary serial execution in completion order, not stale-snapshot logic or double-spend behavior;
+  - examples:
+    - slow `buy-upgrade(seed-pouch)` + fast `buy-badge(water-badge)` -> final state has both purchases and balance `9812`;
+    - slow `buy-consumable(cucumber-water)` + fast `buy-badge(water-badge)` -> final state has both and balance `9320`;
+    - slow `buy-consumable(stretch-ticket)` + fast same `stretch-ticket` -> fast success, slow cleanly fails with `小黃瓜不足。`
+  - same-item follow-up confirms costs are recomputed against the updated live state rather than snapshotted:
+    - second `seed-pouch` under the race costs `9` (balance `9992 -> 9983`);
+    - second `water-badge` costs `342` (`180 * 1.9`);
+    - second `cucumber-water` costs `590` (`500 * 1.18`);
+  - conclusion: slow-body mutation timing does not create stale-cost purchases, overspend, or duplicate rewards; it only delays when the token is consumed.
+- Wider same-token slow-body batching is also now characterized (`scratch/probe_multi_slow_same_token.py` / `dumps/multi_slow_same_token_20260705.txt`):
+  - many same-token requests can be admitted before the token is consumed if their JSON bodies are held open, then released together;
+  - after release, the server executes them with ordinary serial semantics and current-state price checks, not lost-update semantics;
+  - examples:
+    - `8` parallel slow `buy-badge(water-badge)` requests settle to the serially plausible final state `Lv.6` with balance `794`, with the extra requests failing cleanly for insufficient balance;
+    - `16` parallel slow `buy-upgrade(seed-pouch)` requests settle to `16` upgrades and balance `9560`, matching a normal serial purchase chain;
+    - `16` parallel slow `buy-consumable(cucumber-water)` requests settle to balance `461` with the later requests failing cleanly once funds run out.
+  - this means many actions can be queued on one token, but they still behave like an accelerated serial script rather than a stale-token duplication bug.
+- Slow-action-then-fast-load cross-snapshot tests are now substantially bounded (`scratch/probe_slow_action_then_load.py` / `dumps/slow_action_then_load_20260705.txt` and `_v2.txt`):
+  - pattern:
+    - begin a paused-body authenticated mutation under snapshot `A`;
+    - before finishing that body, fully `load` a different signed snapshot `B` with the same token;
+    - then release the paused mutation body.
+  - forward-direction cases confirm the delayed mutation executes on the post-load snapshot `B`, not the original snapshot `A`:
+    - `buy-badge(water-badge)` after loading `badge1` charges the level-2 cost `342`, yielding `Lv.2`;
+    - the same mutation after loading `badge5` charges the level-6 cost `4456`, yielding `Lv.6`;
+    - `buy-upgrade(seed-pouch)` after loading `seed10` charges the 11th-purchase cost `32`, yielding `count=11`;
+    - `buy-upgrade(sprinkler)` after loading `badge1` succeeds and produces the ordinary `badge1 + sprinkler` state.
+  - reverse-direction cases confirm there is no hybrid bleed from the pre-load snapshot either:
+    - `buy-upgrade(sprinkler)` started from `badge1` but released after loading plain `WELCOME` fails with the ordinary `這個物品還沒解鎖。`;
+    - `buy-upgrade(seed-pouch)` started from `seed10` but released after loading plain `WELCOME` yields the ordinary fresh `seed-pouch count=1` state at cost `8`;
+    - `buy-badge(water-badge)` started from `badge5` but released after loading `badge1` yields the ordinary `badge2` state at cost `342`.
+  - conclusion:
+    - delayed mutations run against the current post-load live snapshot with its present unlock checks and scaled prices;
+    - no mixed pre-load/post-load state, stale cost, stale count, or stale unlock bug was observed in this family.
+- Reset now looks equivalent to "swap the current live snapshot to empty" rather than a special merge primitive (`scratch/probe_slow_action_then_reset.py` / `dumps/slow_action_then_reset_20260705.txt`):
+  - pattern:
+    - load the rich `artifacts/farm_cycle3_20260705.bak` snapshot (`~49.47M` cucumbers, `207246.9 cps`, `WELCOME` already used);
+    - begin a paused-body authenticated mutation under that rich state;
+    - while the body is paused, send `POST /api/reset` with the same token;
+    - then release the paused mutation body.
+  - observed cases:
+    - delayed `redeem-code(WELCOME)` after reset commits the ordinary empty-state `WELCOME` branch only:
+      - reset response is the ordinary empty snapshot;
+      - delayed redeem then succeeds to exactly `10000` cucumbers / empty inventory;
+      - final save has only `redeemedCodes = {"WELCOME": true}` with no rich inventory carried over.
+    - delayed `trigger-event(boom)` after reset commits the ordinary empty-state event branch only:
+      - final live/save state stays at `0` cucumbers / `0 cps` with `activeEvents = ["boom"]` and only a normal `eventCooldowns.boom`;
+      - the rich pre-reset `207246.9 cps` state does not leak into the payout.
+    - delayed `buy-upgrade(sprinkler)` after reset fails with the ordinary fresh-state unlock error `這個物品還沒解鎖。`.
+  - token follow-up:
+    - after the delayed action lands, the reset response token is stale;
+    - both the delayed-action response token and a fresh `GET /api/state` token save the same final branch normally;
+    - this matches the earlier paused-load model where the *last committed action* owns the surviving branch token.
+  - conclusion:
+    - `reset` does not expose a richer redeem-reset, inventory-carry, or retroactive-passive merge bug;
+    - treat it as another "current snapshot replacement" operator, similar in effect to `load(empty)` for delayed-mutation testing.
+- Focused delayed-redeem follow-up (`scratch/probe_slow_redeem_then_load.py` / `dumps/slow_redeem_then_load_20260705.txt`) closes the most promising remaining `WELCOME` composition idea:
+  - pattern:
+    - begin a paused-body authenticated `POST /api/redeem-code {"code":"WELCOME"}` from an empty snapshot;
+    - before finishing that body, fully `load` a signed snapshot where `WELCOME` is already consumed (`welcome`, `seed1`, `seed10`);
+    - then release the paused redeem body.
+  - results:
+    - if the post-load snapshot already has `redeemedCodes.WELCOME = true`, the delayed redeem fails cleanly with the ordinary `這組兌換碼已經使用過。`;
+    - the final live state/save remain the ordinary loaded snapshot (`welcome`, `seed1`, or `seed10`) with no additive `+10000` merge.
+  - conclusion:
+    - `redeem(WELCOME)` uses the current live snapshot semantics after the load, not its original admission-time eligibility;
+    - this rules out the hoped-for `load(richer WELCOME-used snapshot) -> delayed redeem` additive-economy branch.
+- Focused token-survival follow-up on the same family (`scratch/probe_cross_snapshot_token_branches.py` / `dumps/cross_snapshot_token_branches_20260705.txt`) further weakens the branch-token angle:
+  - after `load(welcome)` -> paused `buy-badge` -> `load(badge1)` -> release `buy-badge`,
+    the delayed action commits the ordinary final `badge2` state;
+  - attempting `save` with the earlier fast-load token after the delayed action completes returns `409 動作已過期` against the final `badge2` state;
+  - the later delayed-action token is the expected current token for that final state; probing stale tokens afterward only rotates to a new ordinary fresh token.
+  - conclusion: once the delayed mutation lands, the earlier load-side token does not remain as a parallel valid branch token.
+- Delayed-event plus cross-snapshot load follow-up on 2026-07-05 (`scratch/probe_slow_event_then_load.py` / `dumps/slow_event_then_load_20260705.txt`) also comes back bounded:
+  - method:
+    - start a paused-body `trigger-event(boom|rain)` from a fresh `0 cps` snapshot;
+    - wait `8s`;
+    - fully `load(artifacts/farm_longrain_20260705.bak)` with the same token;
+    - wait another `2s`;
+    - then release the paused event body.
+  - observed loaded rich state:
+    - `cucumbers ~= 83,500,7xx`
+    - base `cps ~= 161,621.9`
+  - observed deltas after release:
+    - delayed `boom` added about `3.76M`, which matches only about `2.3s` of `x10 * 161,621.9 cps`, not the full `10s` paused interval;
+    - delayed `rain` added about `757k`, which likewise matches only about `2.3s` of `x2 * 161,621.9 cps`.
+  - conclusion:
+    - once a rich backup is loaded mid-flight, the delayed event executes against that current loaded snapshot and only credits elapsed time after the load;
+    - there is no cross-snapshot retroactive windfall carrying the pre-load paused interval onto the richer state.
+- Interleaved queued same-token `load(empty)` and `redeem(WELCOME)` requests now have a bounded replay effect (`scratch/probe_interleaved_queued_load_redeem.py` / `dumps/interleaved_queued_load_redeem_20260705.txt`):
+  - with one original empty-state token `t0`, three paused loads and three paused redeems were admitted before any completion;
+  - releasing them in the order `R1 -> L1 -> R2 -> L2 -> R3 -> L3` produced:
+    - `R1` success to the ordinary `10000`-cucumber `WELCOME` state;
+    - `L1` success back to the empty snapshot;
+    - `R2` success to the ordinary `10000`-cucumber `WELCOME` state again;
+    - `L2` success back to the empty snapshot again;
+    - `R3` only a stale-token `409`;
+    - `L3` still succeeds and leaves the live state empty.
+  - immediate `save` after the two successful redeem steps confirms ordinary signed `WELCOME` backups, not mixed states.
+  - conclusion:
+    - pre-admitted stale requests can replay `WELCOME` more than once when separated by admitted rollback loads;
+    - however this has only yielded temporary branch states alternating between ordinary `empty` and ordinary `WELCOME`, not net accumulation or a richer pre-redeem checkpoint.
+- Stale-error ghost-state follow-up (`scratch/probe_stale_error_branch_token.py` / `dumps/stale_error_branch_token_20260705.txt`) closes the most tempting interpretation of the previous result:
+  - the third queued redeem above returns `409 動作已過期` but its JSON `state` misleadingly shows the ordinary `10000`-cucumber `WELCOME` view even though the live cookie is already back on the empty snapshot;
+  - the stale redeem response also carries a fresh-looking token, but an immediate `POST /api/save` with that token returns ordinary `409` against the actual empty live state, not a hidden `WELCOME` branch;
+  - therefore the stale redeem error response is a misleading request-local view only, not a usable alternate branch token.
+- Pre-admitted rollback-replay leakage follow-up in `scratch/probe_rollback_leakage_sequences.py` / `dumps/rollback_leakage_sequences_20260705.txt` is also negative:
+  - tested three same-token delayed-action families admitted before completion:
+    - `R1 -> U1(seed-pouch) -> L1(empty) -> R2 -> U2(seed-pouch) -> SAVE`
+    - `R1 -> C1(cat-keyboard) -> L1(empty) -> R2 -> C2(cat-keyboard) -> SAVE`
+    - `R1 -> B1(water-badge) -> L1(empty) -> R2 -> B2(water-badge) -> SAVE`
+  - in every case, the final visible/save state is only the ordinary second `WELCOME` branch:
+    - one `seed-pouch`, not two;
+    - `40` cat clicks, not `80`;
+    - `water-badge Lv.1`, not `Lv.2`.
+  - conclusion:
+    - pre-admitted same-token purchases/events do not leak rolled-back branch progress into a later replayed `WELCOME` branch.
+
+## Economy And Grinding Assessment
+
+Confirmed mechanics:
+
+- `WELCOME` grants 10000 cucumbers once.
+- `cat-keyboard` can be spammed server-side and grants `40 * effectivePerClick`; it increments `totalClicks` by 40.
+- Fresh 2026-07-04 retest in `scratch/probe_event_mechanics.py` / `dumps/ecec_event_mechanics.txt`:
+  - repeated `cat-keyboard` calls in one session add exactly 40 clicks each;
+  - extra fields `count`, `clicks`, and nested `effect.clicks` are ignored;
+  - list/comma/NUL-tail IDs are rejected as unknown events;
+  - duplicate `boom`/`rain` calls do not stack active event multipliers;
+  - `hacker` can be repeated and subtracts 12% of current balance each time.
+- `scratch/probe_event_refresh.py` / `dumps/event_refresh_probe.txt` tightened the duplicate-event result:
+  - repeated `boom` and `rain` calls while already active do not refresh duration;
+  - observed `remaining` time decreases normally across duplicate calls.
+- `boom` x10 CPS and `rain` x2 CPS can coexist for a max observed CPS multiplier of x20.
+- Duplicate events do not stack.
+- Exact lowercase event IDs only: `cat-keyboard`, `boom`, `rain`, `hacker`, `tired-hands`.
+- Achievements have no rewards.
+- `tired-hands` caps fatigue near 100 and multiplier floors around 0.4.
+- `hacker` subtracts 12% of current cucumbers; no sign/overflow behavior.
+- Offline/CPS backup replay does not compound passive earnings.
+- The queued-load rollback bug can also emit signed **no-redeem** event snapshots (`scratch/probe_paused_load_cat_branch_save.py` / `dumps/paused_load_cat_branch_save_20260705.txt`):
+  - pattern:
+    - begin a slow authenticated `load(empty)` on an empty snapshot and pause the body;
+    - while it is paused, admit many same-token delayed `trigger-event(cat-keyboard)` requests and release them;
+    - before completing the paused load, call `save` on the transient richer branch; then let the load roll the live cookie back to empty.
+  - observed result with `80` queued cat requests:
+    - transient branch reaches `1720` cucumbers / `1720` totalClicks with `redeemedCodes = {}`;
+    - the signed saved backup preserves that branch exactly, including a normal `cat-keyboard` cooldown entry;
+    - completing the paused load returns the live session to the ordinary empty snapshot.
+  - interpretation:
+    - the bug is not limited to replaying `WELCOME` branches;
+    - it can materialize valid signed checkpoints of normal-progress states that were never meant to persist while leaving the live session rolled back.
+
+Grinding estimate:
+
+- `scratch/sim_economy.py` includes badge unlocks and greedy reinvestment.
+- Even with favorable repeated `cat-keyboard`, no fatigue penalty, and greedy purchases, reaching `1e20` costs about `304,738,973,403` successful event requests.
+- At 10 successful mutations/second, that is roughly 966 years.
+- Re-running `scratch/sim_economy.py` confirmed the same order of magnitude after considering upgrades and badges:
+  - greedy cat-event path: `304,738,973,403` cat events, final perClick around `4.39e7`;
+  - passive CPS after late purchases is still not enough to make the flag purchase practical within challenge time.
+- Conclusion: optimized auto-click/event grinding is infeasible.
+- Corrected wall-clock model in `scratch/sim_time_to_flag.py` / `dumps/sim_time_to_flag.txt` fixed a bug in the earlier CPS-aware script and still rules out the event-only solve path:
+  - the script already loads the real late-game upgrade/badge catalog directly from `dumps/browser_initial_state_response_body.json`, so these estimates are not missing hidden shop tiers;
+  - the simulator only buys upgrades/badges when they strictly reduce total time to the flag;
+  - even under an overly generous assumption of permanent `boom * rain = x20` passive CPS and sustained `cat-keyboard` rates far above realistic RTT-limited play, completion remains absurdly slow;
+  - example outputs: `cat_rps=14` still estimates about `3.34e6` years, and even `cat_rps=50` remains about `9.37e5` years.
+- New same-token batch admission does improve practical `cat-keyboard` throughput, but not enough to rescue the grind:
+  - an empirical batch sweep with held-open same-token `trigger-event(cat-keyboard)` requests found:
+    - `20` queued -> `20` successes in `0.345s` (`~58/s`);
+    - `40` queued -> `38` successes in `0.831s` (`~46/s`);
+    - `80` queued -> `61` successes in `1.83s` (`~33/s`);
+    - `160` queued -> still `61` successes in `2.72s` (`~22/s`), so the success count plateaued well below the submitted batch size.
+  - feeding those empirical rates back into `scratch/sim_time_to_flag.py` still leaves the challenge wildly out of reach:
+    - `cat_rps=58.0` -> about `8.08e5` years;
+    - `cat_rps=45.7` -> about `1.02e6` years;
+    - `cat_rps=33.4` -> about `1.40e6` years.
+  - conclusion: even after accounting for same-token batch admission and upgrade-aware optimization, the auto-grind route remains infeasible.
+- Direct signed-checkpoint cycle follow-up on 2026-07-05 (`scratch/probe_cat_checkpoint_cycle.py` / `dumps/cat_checkpoint_cycle_20260705.json`) now gives a concrete reusable-loop measurement:
+  - start from a fresh empty session;
+  - queue `160` slow-body same-token `trigger-event(cat-keyboard)` requests and release them together;
+  - first batch result:
+    - final state `1200` cucumbers / `1200` totalClicks, i.e. `30` effective cat events;
+    - immediate save is a valid signed no-redeem snapshot with `eventCooldowns.cat-keyboard = 1783251063.880106`.
+  - after waiting `365s`, save again and reload that same signed snapshot:
+    - the saved bytes still preserve the same absolute cooldown timestamp;
+    - because wall time has moved past it, reloading the snapshot allows another immediate cat batch.
+  - second `160`-request batch after reload:
+    - final state rises from `1200` to `3200` totalClicks / cucumbers;
+    - incremental gain is `2000`, i.e. `50` additional cat events in that cycle.
+  - interpretation:
+    - reusable no-redeem cat checkpoints are real;
+    - the practical repeatable loop is on the order of `30-50` cat events per `365s`, not the much higher burst-only rates from the earlier same-token batch sweeps.
+  - feeding that real loop back into the time model is even worse than the earlier optimistic burst estimates:
+    - `30 / 365s` (`cat_rps ~= 0.0822`) with start `1200` -> about `3.99e8` years;
+    - `50 / 365s` (`cat_rps ~= 0.1370`) with start `1200` -> about `2.74e8` years.
+  - conclusion:
+    - even the reusable checkpointed cat path is decisively infeasible as a solve route.
+- Additional upgrade-aware checkpoint-grind bound on 2026-07-05 (`scratch/sim_cycle_bounds.py` / `dumps/cycle_bounds_20260705.txt`) tightens the earlier answer to the user's "but upgrades exist" objection:
+  - the simulator still buys every upgrade/badge that improves total finish time, using the real live catalog from `dumps/browser_initial_state_response_body.json`;
+  - realistic reusable cat-loop rates remain hopeless even after including those purchases:
+    - `30 cats / 365s` (`cat_rps ~= 0.0822`), ordinary passive CPS only -> about `5.60e8` years;
+    - `50 cats / 365s` (`cat_rps ~= 0.1370`), ordinary passive CPS only -> about `3.38e8` years;
+    - the same two rates under an absurd permanent passive `x20` multiplier still only improve to about `3.99e8` and `2.74e8` years respectively.
+  - starting from a richer `WELCOME`-style `10000`-cucumber checkpoint instead of a `1200` no-redeem cat checkpoint makes no material difference at this scale; the model converges to the same order of magnitude.
+  - even a much too optimistic reusable bound of `160 cats / 365s` with permanent passive `x20` still lands around `9.95e7` years.
+  - and the older absurd continuous fantasy of `50 successful cat events / second` remains around `9.37e5` years.
+  - conclusion:
+    - upgrades and badges were already effectively considered;
+    - the checkpoint/save bug does not make grinding remotely plausible.
+- Slow same-token event batching does not create a multiplier-stacking break (`scratch/probe_slow_event_batching.py` / `dumps/slow_event_batching_20260705.txt`):
+  - prepared farm: `WELCOME` redeemed, then `water-badge` + `sprinkler` purchased for baseline `cps = 3`;
+  - `8` queued paused-body `trigger-event(boom)` requests yield multiple `200` responses but the resulting state still has only one live `boom` and `cps = 30`, not `300+`;
+  - `8` queued paused-body `trigger-event(rain)` requests similarly settle to one live `rain` and `cps = 6`, not stacked multipliers;
+  - queued `cat-keyboard` requests do still accumulate ordinary serial click gains.
+  - conclusion: same-token batching bypasses cooldown admission, but duplicate `boom`/`rain` still dedupe to one effective active multiplier.
+- New high-signal delayed-event ordering bug on 2026-07-05 (`scratch/probe_delayed_passive_order.py` / `dumps/delayed_passive_order_20260705.txt`):
+  - use the already-known `11` sprinklers + `water-badge Lv.4` setup (`baseline cps = 57.75`), then start a valid JSON request, pause the body, wait, and only finish the body later;
+  - delayed `trigger-event(boom)` with a `10.44s` pause produced:
+    - baseline passive estimate: about `602.95`;
+    - actual cucumber delta: about `6061.05`;
+    - final live state still has active `boom` and `cps = 577.5`;
+  - delayed `trigger-event(rain)` with a `10.65s` pause produced:
+    - baseline passive estimate: about `614.78`;
+    - actual cucumber delta: about `1241.10`;
+    - final live state still has active `rain` and `cps = 115.5`;
+  - interpretation:
+    - the server is effectively applying the new event multiplier before syncing elapsed passive income for the paused interval;
+    - this turns `boom` into a retroactive `x10` passive multiplier and `rain` into a retroactive `x2` passive multiplier over the whole hold-open window.
+- The same probe also revealed the complementary purchase-ordering quirk:
+  - delayed `buy-upgrade(sprinkler)` with a `25.4s` pause returned ordinary `小黃瓜不足。` even though the post-response state had risen from about `627.64` to `2106.93` cucumbers;
+  - the measured delta (`1479.29`) matches ordinary baseline passive accrual (`1467.23`) rather than a boosted purchase result;
+  - interpretation:
+    - buy validation happens before the elapsed passive sync, while event-effect application happens before that sync.
+- Chained delayed-event follow-up on 2026-07-05 (`scratch/probe_event_chain_timing.py` / `dumps/event_chain_timing_20260705.txt`) confirms the multiplier composes with already-active events:
+  - after the same `57.75 cps` setup, a delayed `boom` with a `6.39s` pause raised live state to active `boom` / `577.5 cps` as expected from the retroactive `x10` bug;
+  - while that `boom` remained active, a delayed `rain` with a `6.39s` pause raised state from about `4440.06` to `11938.29` cucumbers and ended with both active events live (`boom` + `rain`) and `cps = 1155.0`;
+  - this matches retroactive payment at the already-boosted `boom` rate, i.e. an effective `x20` passive multiplier over the paused `rain` interval.
+  - consequence:
+    - the live-service branch is now centered on exploiting delayed `boom`/`rain` passive retroactivity, not on the older infeasible click/cat grind route.
+- Overlapping delayed-event admission does **not** create a stronger retroactive payout than the already-modeled sequential x20 chain (`scratch/probe_overlapping_event_chain.py` / `dumps/overlapping_event_chain_20260705.txt`):
+  - pattern:
+    - prepare the same `11` sprinklers + `water-badge Lv.4` setup (`57.75 cps`);
+    - admit slow `boom` and slow `rain` concurrently on the same token;
+    - hold both for `10s`;
+    - release `boom`, wait `0.5s`, then release `rain`.
+  - observed values:
+    - `boom` paid from `606.28` to `6488.23`, matching the known retroactive `x10` bug over the `~10s` hold;
+    - after a short live gap, `rain` only raised state from `6604.53` to `7314.41`, i.e. about `+710`, which matches only about `0.61s` at `1155 cps` (`boom * rain = x20`) rather than the whole `10s` overlap interval.
+  - implication:
+    - a later delayed event admitted before `boom` lands does **not** retroactively bill the whole shared paused interval at the boosted post-`boom` rate;
+    - this closes the tempting "overlapping queued boom/rain gives more than sequential sustained x20" branch.
+- Intervening purchases also kill the strongest remaining "event time travel" idea (`scratch/probe_boom_then_buy_before_release.py` / `dumps/boom_then_buy_before_release_20260705.txt`):
+  - pattern:
+    - load the rich checkpoint `artifacts/farm_cycle3_20260705.bak` (`~49.47M` cucumbers, `207246.9 cps`);
+    - begin a paused-body authenticated `trigger-event(boom)`;
+    - wait `8s`;
+    - **before releasing `boom`**, spend the same token on a real CPS-increasing purchase (`buy-upgrade(market-contract)`);
+    - then release the paused `boom`.
+  - observed values:
+    - loaded state: `49,473,543.40` cucumbers at `207246.9 cps`;
+    - after the intervening `market-contract` purchase: `16,151,843.12` cucumbers at `208611.9 cps`;
+    - after releasing `boom`: `16,386,639.34` cucumbers at `2086119.0 cps`.
+  - key deltas:
+    - the purchase step itself accounts for the held interval at the **old** base CPS:
+      - the raw spend should have dropped balance by about `35.08M`,
+      - but the actual post-buy balance is about `1.75M` higher than that raw-spend-only expectation,
+      - matching roughly `8s` of ordinary passive income at `207246.9 cps`.
+    - the later `boom` adds only about `+234,796`, which matches just the tiny post-buy gap at `x10 * 208611.9 cps`, **not** the whole `8s` paused interval at the upgraded CPS.
+  - implication:
+    - a paused event does **not** preserve a large unsynced window across an intervening mutation;
+    - real purchases during the pause reset the passive window first, so the feared "upgrade right before release and retroactively bill the entire wait at the new CPS" exploit path is closed.
+- Solver pilot on 2026-07-05 (`solve.py`, `dumps/solve_pilot_20260705.txt`) shows the event bug is economically real, not just a narrow oracle:
+  - starting from the same `11` sprinklers + `water-badge Lv.4` setup (`57.75 cps`), a short-cycle bot that:
+    - triggers delayed `boom`,
+    - triggers delayed `rain`,
+    - repeatedly buys the best passive-CPS purchases/bundles,
+    - and harvests in short `5s` chunks while both multipliers are active,
+    reached in about `43s`:
+    - `147,823.62` cucumbers,
+    - `28,710 cps`,
+    - `60` upgrades,
+    - `20` badge levels.
+  - this already ruled out the earlier "maybe still just too slow" concern for the live exploit path.
+- Longer economic pilot on a fresh instance (`dumps/solve_long_20260705.txt`) after `180s` reached:
+  - live state `3,445,103.94` cucumbers,
+  - `650,839 cps`,
+  - `195` upgrades,
+  - `64` badge levels,
+  - both `boom` and `rain` still active.
+  - the signed backup saved at the end of the richer `360s` run (`artifacts/farm_6min_20260705.bak`) held:
+    - `10,597,636.18` cucumbers,
+    - major passive inventory such as `market-contract x18`, `hydroponic-rack x9`, `drone-irrigation x22`, `pickle-lab x23`,
+    - and badge stackups through `market-badge x8`, `hydro-badge x4`, etc.
+- Fresh-load continuation findings on 2026-07-05 materially change the solve model:
+  - loading a signed rich backup *does* preserve the economic snapshot (`cucumbers`, `owned`, `badges`) across fresh instances;
+  - but the live service does **not** honor saved event state in the way first expected:
+    - backups saved with active `boom` / `rain` and future `eventCooldowns` load back with the lower base `cps` and no usable active event effects in the live JSON response;
+    - the loaded runs therefore behaved like "rich economy, fresh event slate" far more than "economy + live event continuation".
+  - practical consequence:
+    - saved backups are excellent for carrying forward passive economy progress;
+    - they should not be treated as preserving a still-live `boom` / `rain` multiplier branch.
+- That same load behavior becomes a *new* exploit primitive:
+  - because the rich backup reload comes back without a live active-event branch, it effectively resets the event situation while preserving the richer economy;
+  - this means a profitable cycle is:
+    - build richer state under delayed `boom`/`rain`,
+    - save the signed richer backup,
+    - load that backup again,
+    - and trigger a fresh delayed `boom` / `rain` cycle from the carried-forward economy.
+  - this turns save/load into an event-reset mechanism for repeated multiplier farming, not merely a cross-instance checkpoint.
+- Two concrete continuation checkpoints from that model:
+  - `artifacts/farm_longrain_20260705.bak`
+    - obtained from `artifacts/farm_12min_20260705.bak` using a fresh-cycle `boom 60s` + `rain 135s` strategy;
+    - raw saved economy:
+      - `83,500,673.45` cucumbers
+      - `hydroponic-rack x13`
+      - `fermentation-vats x6`
+      - `seed-bank x1`
+  - `artifacts/farm_cycle3_20260705.bak`
+    - another fresh-cycle refinement from the same event-reset model;
+    - raw saved economy:
+      - `49,473,479.61` cucumbers
+      - `hydroponic-rack x15`
+      - `fermentation-vats x7`
+      - `seed-bank x3`
+  - interpretation:
+    - the second checkpoint trades down immediate cash for more permanent high-tier passive inventory;
+    - the current open optimization problem is when to bank cash vs when to spend into higher tiers like `seed-bank`, `weather-tower`, and beyond.
+- Stronger upper bound on 2026-07-05 now de-prioritizes the delayed-event economy route itself:
+  - reusable simulator: `scratch/sim_checkpoint_x20.py`
+  - output: `dumps/checkpoint_x20_bound_20260705.txt`
+  - model:
+    - start from the real signed checkpoints above;
+    - assume a fantasy best-case where passive production is kept at a continuous effective `x20` forever;
+    - buy only upgrades/badges that strictly reduce total finish time to the `flag-cucumber` cost.
+  - results:
+    - `artifacts/farm_longrain_20260705.bak` -> about `15,871.9` years to the flag;
+    - `artifacts/farm_cycle3_20260705.bak` -> about `15,854.1` years;
+    - `artifacts/farm_12min_20260705.bak` -> about `27,092.4` years;
+    - `artifacts/farm_6min_20260705.bak` -> about `70,500.2` years.
+  - implication:
+    - even after discovering the real delayed `boom`/`rain` ordering bug and carrying forward rich checkpoints, the route is still many orders of magnitude too weak if all it buys us is effectively sustained `x20` passive income;
+    - further solver tuning alone is therefore no longer a primary solve direction.
+- Rich-checkpoint cat-batching follow-up on 2026-07-05 closes the last serious "maybe upgrades make the click path real" objection:
+  - live benchmark script: `scratch/probe_rich_cat_benchmark.py`
+  - output: `dumps/rich_cat_benchmark_20260705.json`
+  - methodology:
+    - create fresh live instances;
+    - load the two best signed checkpoints (`artifacts/farm_longrain_20260705.bak`, `artifacts/farm_cycle3_20260705.bak`);
+    - immediately run paused-body same-token `trigger-event(cat-keyboard)` bursts at sizes `40`, `80`, `160`, and `320`;
+    - measure final `totalClicks`, cucumber delta, duration, and fatigue from the loaded rich state.
+  - important live-state correction:
+    - these rich backups still load as the richer economy snapshots, but the live response again comes back with no active event effects:
+      - `farm_longrain` loaded as about `11523` effective per-click and `161621.9 cps`, `activeEvents: []`;
+      - `farm_cycle3` loaded as about `13923` effective per-click and `207246.9 cps`, `activeEvents: []`.
+    - this reconfirms that save/load acts like an event reset while preserving the richer inventory/economy.
+  - best measured burst results:
+    - `farm_longrain`, `80` submitted -> `1600` delta clicks = `40` effective cat events in about `2.02s`, with no fatigue increase;
+    - `farm_cycle3`, `320` submitted -> `1240` delta clicks = `31` effective cat events in about `16.39s`, with no fatigue increase;
+    - heavier submissions plateaued or got worse (`160`/`320` were not better than the best `80`-request longrain case).
+  - key comparison:
+    - the best rich-checkpoint burst (`40` cats) is still worse than the already-recorded optimistic reusable checkpoint loop of `50` cats per `365s`;
+    - therefore the earlier reusable cat-loop bound was already optimistic relative to the richer-start branch.
+  - checkpoint-aware bound from the real saved inventories:
+    - reusable simulator: `scratch/sim_rich_cat_bound.py`
+    - output: `dumps/rich_cat_bound_20260705.txt`
+    - using the best measured rich burst as the reusable loop rate (`40 / 365s`, `cat_rps ~= 0.109589`) still gives:
+      - `farm_longrain` with ordinary passive only -> about `215,675` years;
+      - `farm_longrain` with absurd permanent passive `x20` -> about `15,465.8` years;
+      - `farm_cycle3` with ordinary passive only -> about `215,464` years;
+      - `farm_cycle3` with absurd permanent passive `x20` -> about `15,449.2` years.
+    - using the weaker `farm_cycle3` measured rate (`31 / 365s`, `cat_rps ~= 0.084932`) is slightly worse again at roughly `15,528-15,545` years under the same fantasy passive `x20` assumption.
+  - conclusion:
+    - upgrades and richer saved checkpoints do not rescue the scripted cat route;
+    - the practical grind branch is decisively dead, and the real solve must still be a logic/signing/disclosure bug.
+
+## Discovery And Enumeration Results
+
+Static/source discovery:
+
+- Broad filename probe with `raft-small-files.txt` found only:
+  - `/`
+  - `/index.html`
+  - `/styles.css`
+  - `/robots.txt`
+  - `/.`
+  - `/.history`
+- Targeted path probe over app/module names and `/game`, `/static`, `/data`, `/.history`, `.py`, `.pyc`, env/config/key/flag suffixes found only known files and `/api/state`.
+- Archive/source package probe over common `.zip`, `.tar*`, `.7z`, `.rar`, `.pyz`, `.whl` names found no hits.
+- Source maps and editor backups around static files were absent.
+- Exact high-signal source backup/editor suffix sweep on 2026-07-05 is also negative (`dumps/source_backup_suffix_probe_20260705.txt`):
+  - root and fallback-surface probes over names such as `app.py.bak`, `save.py~`, `signer.py.old`, `config.py.orig`, `events.bak`, `codes.swp`, `shop.tmp`, and related exact backup suffix variants returned only ordinary `404` HTML after serial reprobe;
+  - the few concurrent timeout hits (`badges~`, `badges.old`, `badges.swp`, fallback `badges.bak`) collapse to ordinary `404` on serial follow-up.
+- Final exact-name disclosure supplement on 2026-07-05 is also negative (`scratch/probe_extra_source_names.py` / `dumps/extra_source_names_20260705.txt`):
+  - added exact root and nested Python-project names not cleanly covered by the earlier state-model sweeps, including:
+    - root files such as `farm.py`, `handler.py`, `routes.py`, `httpd.py`, `server_main.py`, `storage.py`, `persist.py`, `serialize.py`, `deserialize.py`, `validate.py`, `security.py`, `reveal.py`, `flag`, `flag.txt`, `userid`, `userid.txt`, `Dockerfile`, `requirements.txt`, `pyproject.toml`, `.env`, and `.flaskenv`;
+    - nested candidates such as `api/reveal.py`, `game/reveal.py`, `game/logic/farm.py`, `game/service/storage.py`, `game/store/catalog.py`, `data/flag.txt`, `data/userid.txt`, `data/redeem.{yaml,yml,json}`, `data/catalog/reveal.json`, `data/config/{secret,secrets,reveal}.toml`, and `static/flag.txt`;
+  - result: `rows: []`, i.e. no non-404 hits on either the direct or fallback surface.
+- `/.history` is flat; `/.history/` and dated subpaths return 404.
+- Focused path normalization/traversal over encoded `..`, double slashes, `.history` subpaths, `/proc/self/*`, source/config/flag names found no readable files. `/.history%00.py` gave empty 502 only.
+- 2026-07-04 raw-path delimiter probe in `dumps/path_delim_probe_20260704.txt` found no alternate parsing win:
+  - encoded `?`, `#`, tab, and space on `/.history`, `/game.js`, and `/api/state` all return ordinary 404 HTML;
+  - no query-fragment confusion or suffix truncation was observed.
+- New 2026-07-04 route-miss static fallback traversal in `dumps/api_state_fallback_traversal_20260704.txt`:
+  - `GET /api/state?x=1` returns a real 404 HTML page instead of JSON;
+  - deeper miss paths such as `/api/state/../../.history?x=1`, `/api/state/../../game.js?x=1`, `/api/state/../../../.history?x=1`, `/api/state/..%2f..%2f.history?x=1`, and `/api/state/%2e%2e/%2e%2e/.history?x=1` all fall through to the static handler and successfully return the target file;
+  - this confirms a real route-miss -> static fallback traversal surface, not just the previously known `/api/../...` normalization.
+- 2026-07-05 follow-up on that fallback:
+  - `/api/state/../../?x=1` and `/api/state/../.././?x=1` both serve the normal root `index.html`, not a directory listing;
+  - `/api/state/../../game/?x=1`, `/api/state/../../static/?x=1`, `/api/state/../../data/?x=1`, `/api/state/../../api/?x=1`, `/api/state/../../.git/?x=1`, `/api/state/../../__pycache__/?x=1`, `/api/state/../../backups/?x=1`, and `/api/state/../../saves/?x=1` all return ordinary 404 HTML;
+  - reserved-name file follow-up also stays negative:
+    - `/api/state/../../api?x=1`, `/api/state/../../game?x=1`, `/api/state/../../data?x=1`, `/api/state/../../static?x=1`, `/api/state/../../app?x=1`, and `/api/state/../../app.py?x=1` all return ordinary 404 HTML;
+  - assessment: the fallback reliably reaches the static root, but still does not expose directory listings or a shadow directory tree.
+- 2026-07-04 semicolon static-path probe found no matrix-param normalization on known files:
+  - `/.history;x=y`, `/.history;.py`, `/game.js;x=y`, `/game.js;.py`, `/styles.css;x=y`, and `/Mutsumi.ico;x=y` all return ordinary 404 HTML.
+- Caido retest of normalized source/config paths (`/app.py`, `/api/../app.py`, `/static/%2e%2e/app.py`, `/game/*`, `/data/*`, `/server.py`, `/main.py`, `/config.py`, `/flag.txt`) returned only normal 404s.
+- Focused concurrent `HEAD` pass over 5,412 themed Python/source/config/pycache paths on the fresh `fed3...` instance returned zero candidates; 317 requests timed out/errored under concurrency but no non-404 source-like hits were observed.
+- Exact `/data/*.json` guesses implied by the state model (`upgrades`, `badges`, `consumables`, `events`, `achievements`, `shop`, `state`, `redeem-codes`, `secrets`) all returned 404.
+- Structured filename sweep in `scratch/fuzz_source_paths_structured.py` / `dumps/source_paths_structured_20260704.txt` covered 1,132 root, `/game`, `/data`, `/static`, and `/game/data` Python/data/config candidates:
+  - no real hits were found;
+  - the few timed-out paths reprobe cleanly as normal 404s, so they were concurrency noise.
+- Additional hyphenated `/data/*.json` reprobe (`redeem-codes`, `event-control`, `game-data`, `catalog`, `items`, `params`, `ranks`, etc.) also returned only ordinary 404s.
+- Focused `/data` extension sweep on 2026-07-05 also stayed negative after serial reprobe:
+  - direct and fallback-surface requests for high-signal names such as `catalog`, `items`, `shop`, `settings`, `config`, `secret(s)`, and `redeem-codes` with extensions `.yaml`, `.yml`, `.toml`, `.ini`, `.cfg`, `.pickle`, `.pkl`, `.db`, `.sqlite*`, `.csv`, and `.bak` produced only concurrency-timeout noise in the parallel pass (`dumps/data_format_paths_20260705.txt`);
+  - the interesting timeout candidates (`catalog.ini`, `catalog.pickle`, `items.yaml`, `redeem-codes.sqlite3`, `shop.pickle`, etc.) reprobe serially as ordinary `404` HTML, so there is still no evidence of exposed non-JSON data files under `/data`.
+- Focused follow-up through the new fallback surface found no shadowed physical source tree:
+  - `dumps/api_state_shadowed_source_probe_20260704.txt` tested `/api/state/../../api/...`, `/api/state/../../game/...`, `/api/state/../../data/...`, and top-level candidates such as `app.py`, `main.py`, `server.py`, `config.py`, `.env`, `flag`, and `userid`;
+  - all returned ordinary 404 HTML, so the new traversal has not yet exposed a hidden on-disk `/api` implementation or mounted secrets.
+- Additional hidden-directory and packaging probes via the fallback surface in `dumps/api_state_hidden_dirs_20260704.txt` were also negative for:
+  - `.git/`, `.git/config`, `.git/HEAD`, `__pycache__/`, `.venv/`, `backups/`, `saves/`, `save/`, `uploads/`, `Dockerfile`, `docker-compose.yml`, `requirements.txt`, `pyproject.toml`, `Pipfile`, `.python-version`.
+
+API discovery:
+
+- Exact POST route probe over flag/reveal/use/consume/claim/debug/source/config/secret/backup/cheat variants under `/api`, `/game`, `/data`, `/admin` found no JSON/flag/debug hits.
+- Fresh valid-token small-word sweep in `scratch/fuzz_hidden_routes_valid_small.py` / `dumps/hidden_routes_valid_small.txt` again surfaced only known routes:
+  - `GET /api/state`
+  - `POST /api/save`
+  - `POST /api/reset`
+  - `POST /api/click`
+  - `POST /api/trigger-event`
+  - `POST /api/load`
+- 2026-07-04 valid-token focused probe in `scratch/probe_scriptable_actions.py` / `dumps/cdf_scriptable_actions.txt` found no hidden bulk/tick/offline/action handlers:
+  - `/api/tick`, `/api/update`, `/api/sync`, `/api/harvest`, `/api/clicks`, `/api/batch-click`, `/api/batch`, `/api/collect`, `/api/claim`, `/api/claim-offline`, `/api/offline`, `/api/progress`, `/api/action`, `/api/perform`, `/api/run-action`, `/api/work`, `/api/farm`, `/api/cucumbers`, `/api/use`, `/api/use-consumable`, `/api/buy-all`, `/api/max`, `/api/verify`, `/api/flag`, `/api/reveal`, and `/api/debug` all returned real 404s with a valid token.
+- Caido batch with invalid tokens showed all `/api/<anything>` as 409 JSON, proving invalid-token route fuzzing is not reliable on this app.
+- Broad `/api/<word>` GET fuzz found only `/api/state` before instance degradation; later 502s were treated as noise.
+- CGI/status probe found no hits.
+- Malformed JSON with a valid token is mostly handled as empty input; top-level JSON arrays/strings to buy endpoints cause empty 502s, but no traceback or useful state change.
+- Focused valid-token malformed-body probe in `scratch/probe_partial_error_paths.py` / `dumps/partial_error_paths_20260705.txt`:
+  - `POST /api/buy-upgrade` with top-level JSON `[]` or `"seed-pouch"` returns an empty `502`, but the old token remains valid and state does not change;
+  - truncated JSON such as `{"id":"seed-pouch"` is handled as ordinary bad input, returns JSON `error: "找不到這個物品。"` with `200`, rotates the token, and still does not change state.
+- Follow-up signer/source filename disclosure pass in `scratch/probe_signer_paths_focus.py` / `dumps/signer_paths_focus_20260705.txt` stayed negative:
+  - exact signer/save/session/config candidate names such as `app.py`, `server.py`, `save.py`, `load.py`, `backup.py`, `serializer.py`, `sign.py`, `signer.py`, `mac.py`, `secret.py`, `secrets.py`, `session.py`, `events.py`, `codes.py`, `config.py`, `settings.py`, `utils.py`, `helpers.py`, and `.env` all return ordinary `404` HTML;
+  - the same names routed through the confirmed fallback surface (for example `/api/state/../../signer.py?x=1`) also return ordinary `404` HTML;
+  - focused `/data` guesses for `upgrades.json`, `badges.json`, `consumables.json`, `events.json`, `codes.json`, `redeem_codes.json`, `redeem-codes.json`, `settings.json`, `config.json`, and `secrets.json` were likewise negative.
+  - conclusion: the route-miss fallback reaches the static root but still has not exposed signer/config/source files under high-signal exact names.
+- Fresh focused disclosure follow-up on 2026-07-05 also stayed negative:
+  - new probe script: `scratch/probe_disclosure_focus_v2.py`
+  - output: `dumps/disclosure_probe_20260705.txt`
+  - scope added root/package/dotfile candidates that were not cleanly grouped in earlier sweeps, including:
+    - `.gitignore`, `.dockerignore`, `.editorconfig`, `.python-version`, `.pylintrc`, `.flake8`, `.coveragerc`, `.envrc`, `.gitmodules`
+    - `setup.py`, `setup.cfg`, `MANIFEST.in`, `wsgi.py`, `asgi.py`, `run.py`, `index.py`, `__init__.py`
+    - root words such as `handler`, `handlers`, `router`, `routes`, `verify`, `verifier`, `reveal`, `reward`, `rewards`, `code`, `codes`, `redeem`, `redeem-codes`, `redeem_codes`
+    - nested Python/data/config names under `game/`, `data/`, `api/`, `game/logic/`, plus `cpython-313` `__pycache__` candidates
+    - both direct paths and the confirmed fallback surface `/api/state/../../...?...`
+  - result: `rows: []`, i.e. nothing beyond ordinary `404` on the fresh live probe instance.
+- Additional modularized-prefix matrix on 2026-07-05 also stayed negative (`dumps/prefix_matrix_20260705.txt`):
+  - exact known artifact names such as `game.js`, `styles.css`, `index.html`, `Mutsumi.ico`, `.history`, and common catalog/config JSON names were retried under `/static/...`, `/game/...`, and `/data/...`;
+  - every tested prefixed path returned ordinary `404` HTML.
+  - conclusion:
+    - if `/game`, `/static`, and `/data` ever existed as separate externally reachable route prefixes, they no longer do.
+- Deeper nested config/data/source layout sweep on 2026-07-05 also stayed negative (`scratch/probe_nested_data_paths_v2.py` / `dumps/nested_data_paths_v2_20260705.txt`):
+  - scope expanded to nested directories such as:
+    - `game/data`
+    - `game/logic`
+    - `game/core`
+    - `game/modules`
+    - `data/config`
+    - `data/params`
+    - `data/items`
+    - `data/shop`
+    - `data/redeem`
+    - `data/catalog`
+  - filenames covered the same signer/session/save/state families plus `shop`, `catalog`, `items`, `upgrades`, `badges`, `consumables`, `events`, `achievements`, and `redeem_codes` with extensions including `.py`, `.json`, `.yaml`, `.toml`, `.ini`, `.cfg`, `.pickle`, `.pkl`, `.db`, `.sqlite*`, `.txt`, and `.bak`.
+  - both direct paths and fallback-surface paths (`/api/state/../../...`) were queried.
+  - result: `rows 0` beyond ordinary 404s and timeout noise; no shadowed nested source/config/data files were exposed.
+- Targeted hidden `/api/trigger-event` ID probe over 189 high-signal CTF/game/theme variants excluding the advertised five events returned no valid hidden events.
+- Expanded 2026-07-04 valid-token hidden event sweep in `scratch/probe_hidden_events_expanded.py` / `dumps/ecec_hidden_events_expanded.txt` tested 1,550 Furina/Genshin/CTF/game reward candidate IDs with fresh sessions and found no hidden events.
+- Expanded hidden catalog sweep in `scratch/probe_hidden_catalog_expanded.py` / `dumps/ecec_hidden_catalog_expanded.txt` tested the same 1,550 IDs against consumables/upgrades/badges:
+  - only known `flag-cucumber` and known locked `greenhouse` produced non-lookup responses;
+  - timeout candidates `secretgold` and `reward-bonus` were reprobed serially and returned normal lookup failures.
+
+Redeem codes:
+
+- Known valid code: `WELCOME`.
+- Case is normalized: `welcome` successfully redeems the same code, then `WELCOME` is considered already used.
+- Deterministic 2549-code fuzz of app/theme/static strings found only `WELCOME`.
+- Fresh rerun in `dumps/ecec_fuzz_codes.txt` again found only the known WELCOME code.
+- Invalid and confusable codes are rejected and do not enter signed backup state.
+- Small themed pass over Mutsumi/Wakaba/Mortis/Furina/cucumber/NoHackNoCTF variants found no additional valid code.
+- Additional bounded multilingual/theme pass on 2026-07-05 also found no new code:
+  - Chinese/Japanese/theme strings such as `若葉睦`, `芙寧娜`, `芙宁娜`, `小黃瓜`, `きゅうり`, `金色小黃瓜`, `AveMujica`, `MyGO`, `歡迎`, `新手禮包`, plus related ASCII variants, all behaved like ordinary invalid codes (`dumps/redeem_multilingual_20260705.txt` is empty because no candidate produced a nonstandard response).
+- Larger state-derived code sweep on a fresh instance is also negative (`scratch/probe_state_derived_codes.py` / `dumps/state_derived_codes_20260705.txt`):
+  - `2,849` candidates were generated from the live state/catalog JSON, response bodies, history text, and exact catalog IDs/names such as upgrades, badges, consumables, events, achievements, and ranks;
+  - only `welcome` / `WELCOME` hit, with the second form merely returning the ordinary already-used error after the first success;
+  - anomaly count was `0` on the fresh instance, so this broader in-app vocabulary pass did not uncover any hidden redeem code or crash-only code path.
+
+Save/load replay:
+
+- `scratch/probe_backup_redeem_replay.py` / `dumps/ecec_backup_redeem_replay.txt` confirms loading an old backup fully restores that snapshot:
+  - an empty backup resets balance/clicks/redeemed codes to zero/empty;
+  - a pre-redeem cat backup can redeem WELCOME after load, but always returns to snapshot balance + 10000;
+  - replaying the same pre-redeem backup does not compound reward or merge progress.
+- `scratch/probe_backup_parser_differential.py` / `dumps/ecec_backup_parser_differential.txt`:
+  - concatenated valid backups and split-line stage variants fail signature validation;
+  - ignored base64 bytes before the digest or prefixing the base64 are accepted only when decoded pickle bytes remain unchanged;
+  - no verifier/unpickler parser differential found.
+- Alternate restore-encoding probe in `scratch/probe_load_alt_encodings.py` / `dumps/load_alt_encodings.txt`:
+  - only the exact outer-hex wrapper is accepted;
+  - raw stage ASCII, base64 payload only, raw pickle bytes, raw pickle plus digest, and JSON-wrapped forms all fail with `存檔讀取失敗。`.
+- `POST /api/save` content negotiation retest on 2026-07-04:
+  - `Accept: application/json`, `text/plain`, and `*/*` all still return the same octet-stream backup with no alternate branch.
+- Save-file disclosure retest on 2026-07-04:
+  - after saving, the emitted filename from `Content-Disposition` is not reachable at `/`, `/static/`, `/data/`, `/backups/`, or `/saves/`;
+  - no server-side saved-file exposure was found.
+- Save-filename race retest on 2026-07-05 is also negative:
+  - immediately after a fresh save, the emitted filename such as `Mutsumi Farm-20260705-002830.bak` is still not reachable at `/`, `/static/`, `/data/`, `/backups/`, or `/saves/`;
+  - the route-miss fallback surface (`/api/state/../../<filename>?x=1`, `/api/state/../../backups/<filename>?x=1`, `/api/state/../../saves/<filename>?x=1`) is also negative.
+- Fresh `.bak` filename sweep on instance `0d843a177ee24ccfafe2c771102726b90` is also negative:
+  - direct and fallback-surface probes for plausible developer filenames such as `test.bak`, `backup.bak`, `state.bak`, `welcome.bak`, `farm.bak`, `cucumber.bak`, `mutsumi.bak`, `wakaba.bak`, `flag.bak`, `ui_saved_backup.bak`, `e1_initial.bak`, and `e1_cps_backup.bak` all returned ordinary `404` HTML.
+- New `save` + action race classification in `scratch/probe_save_action_mix.py` with outputs:
+  - broad pass: `dumps/c448_save_action_mix.txt`
+  - focused pass: `dumps/c448_save_action_mix_focus.txt`
+  - method:
+    - take a clean signed `before` save,
+    - race `POST /api/save` against a real authenticated action using the same token,
+    - then take a clean signed `after` save,
+    - compare the raced saved object field-by-field against `before` and `after`.
+  - tested action pairs included:
+    - `save + reset`
+    - `save + load(empty backup)`
+    - `save + load(boom backup)`
+    - `save + buy-upgrade(seed-pouch)`
+    - `save + buy-badge(water-badge)`
+    - `save + buy-consumable(cucumber-water)`
+    - `save + trigger-event(boom|cat-keyboard|hacker)`
+  - result across all decoded successful `save` races:
+    - every raced signed backup matched the full pre-action snapshot;
+    - no decoded raced backup matched a post-action snapshot;
+    - no decoded raced backup was a mixed/impossible state;
+    - no profitable anomalies such as `cucumbers > 0` with empty `redeemedCodes`, item gains without spend, or event cooldown/state inconsistencies were observed.
+  - focused counts on the most valuable cases:
+    - `save + reset`: `38` pre-action backups, `2` stale-token `409` save responses
+    - `save + load_empty`: `39` pre-action backups, `1` `409`
+    - `save + load_boom`: `39` pre-action backups, `1` `409`
+    - `save + buy_upgrade`: `39` pre-action backups, `1` `409`
+    - `save + event_cat`: `38` pre-action backups, `2` `409`
+  - conclusion: `save` does not appear to capture an exploitable intermediate state; when it wins, it serializes the old state.
+- `scratch/probe_restore_sanitization.py` / `dumps/c003_restore_sanitization.txt` adds load-time sanitization detail:
+  - loading an old clicked backup preserves the saved fatigue value, but an immediate re-save resets `lastClickAt` to `0.0`;
+  - loading an expired `boom` backup strips `activeEvents` from the live response and from the re-saved state;
+  - however, the old `eventCooldowns` survive the load and appear again in the next saved backup even when the live response shows no active events;
+  - after load, normal fresh `boom` and `cat-keyboard` actions still work, so expired cooldown entries are only historical unless still in the future.
+- Focused high-fatigue restore timing probes:
+  - source generation: `scratch/probe_cross_instance_restore_timing.py` / `dumps/restore_timing_cross_instance_20260705T004743Z.json`
+  - fresh-target replay: `scratch/probe_load_backup_timing.py` / `dumps/load_backup_timing_20260705T005049Z.json`
+  - a signed backup with:
+    - `fatigue ~= 90.0275`
+    - `lastClickAt = 46828.853665125`
+    - `eventCooldowns = {"tired-hands": 1783212883.9013832}`
+    - was replayed into a different working instance (`dcb67...`).
+  - cross-instance behavior matches same-instance behavior:
+    - load preserves visible balance/click/fatigue state and preserves the old `startedAt`;
+    - the immediate re-save zeroes `lastClickAt` to `0.0`;
+    - `lastUpdate`, `lastFatigueUpdate`, and `nextEventRoll` are recomputed to current-time values;
+    - `eventCooldowns` survive unchanged;
+    - the first post-load click behaves normally and repopulates `lastClickAt` with a new monotonic-like value (`47015.232373438` in the fresh-target run).
+  - conclusion: the mixed epoch/monotonic timestamp model is real, but the load path still has not produced a useful state corruption or economy bypass.
+- `%00` crash continuity retest in `scratch/probe_state_query_token_scope.py` / `dumps/c003_state_query_token_scope.txt`:
+  - repeated `/.history%00.py` requests keep returning empty 502s;
+  - the same session retains redeemed balance and startedAt across those 502s;
+  - this is a parser error path, not a backend restart or in-memory state reset.
+- Consumable fatigue retest in `scratch/probe_consumable_fatigue.py` / `dumps/consumable_fatigue_probe.txt`:
+  - buying `cucumber-water` at zero fatigue is allowed and still increments its price/count;
+  - however fatigue is clamped at `0` and `fatigueMultiplier` never rises above `1.0`;
+  - repeated water use does not create negative fatigue or superlinear click gains.
+
+## Artifact Triage
+
+`Mutsumi.ico`:
+
+- Actually JPEG.
+- EXIF/IPTC:
+  - By-line: `itsneversun`
+  - Date Created: `2023:08:17`
+  - Time Created: `12:52:90+00:00`
+  - IPTC digest: `2dbee0e474355edc8cb6d3296bbe9788`
+- Steghide obvious passphrases and a 1200-word metadata-derived sweep found no embedded data.
+- Quick RGB/BGR LSB scan found no useful marker.
+- No binwalk embedded archive.
+- Deeper 2026-07-05 follow-up still looks clean:
+  - JPEG marker walk shows only ordinary `JFIF`, one `APP13 Photoshop 3.0 / 8BIM` segment carrying the known IPTC fields, then standard progressive-scan markers through `EOI`;
+  - no post-`FFD9` trailer data was found;
+  - binwalk still reports only normal JPEG structure;
+  - a new bounded signer sweep over exact image/IPTC atoms and hashes in `scratch/probe_mutsumi_key_combos.py` / `dumps/mutsumi_key_combos_20260705.txt` checked 68,643 image-derived candidates (411,858 derived keys) across the same HMAC/prefix/suffix/sandwich/BLAKE2 family and found `no match`.
+
+Challenge GIF:
+
+- File: `6a10a59affc2898f06f6fff7943c6091.GIF`
+- User explicitly asked to treat this as a red herring and continue the main web exercise; do not spend additional solve time here.
+- Quick triage:
+  - 250x250 GIF89a, 6 frames, Photoshop XMP.
+  - SHA256: `2896603c55d0a22248e41c98896a0e90b2b4833bb83f8528b72e106a93356f31`
+  - Has a 209-byte post-trailer overlay saved as `dumps/gif/overlay.bin`.
+  - Palette also contains suspicious printable fragments.
+- No immediate plaintext/flag/key from baseline extraction.
+
+Instancer source:
+
+- Public repo cloned to `scratch/CTF-Instancer`.
+- Relevant confirmed behavior from source:
+  - instancer validates our `ctfd_...` token by calling `GET /api/v1/users/me` with `Authorization: Token <token>`;
+  - each container receives the real instance flag as env `FLAG`;
+  - the flag is also mounted into the challenge container as `/flag` and the user identifier as `/userid`.
+- Direct reads of `/flag`, `/userid`, `/proc/self/environ`, `/proc/1/environ`, `/etc/passwd`, `/etc/hosts`, and nearby normalized path variants on the live instance still return ordinary 404s.
+- Caido MCP became unavailable again during this turn (`127.0.0.1:17777` connection refused), so subsequent raw HTTP probing fell back to `curl`/shell.
+- A later retry after the MCP tools reappeared still failed the same way: `mcp__caido` calls continue to error with `connect: connection refused` to `127.0.0.1:17777`, so Caido remains unusable in practice.
+- Instancer proxy host format from `router.go` is `<32-hex-instance-id><port-index>.chal3.teagod.tech:8001`.
+  - Our live host `d3389b42d5be4b93b2c02daa8a40697b0...` is a 32-byte instance id plus visible port index `0`.
+  - Sibling host guesses with the same 32-byte prefix and suffixes `1`/`2`, as well as the 32-byte prefix alone, all route back to the root instancer HTML instead of a hidden cucumber service.
+- Public instancer source also closes the "derive the flag from the instance host/id" branch:
+  - `scratch/CTF-Instancer/models/instance/tools.go` uses `genid()` independently for both `Instance.ID` and `Instance.Flag`;
+  - `genid()` itself is not a weak home-grown counter/PRNG in the public source:
+    - it calls `uuid.NewString()` and strips non-alphanumerics, so the visible host id and hidden flag suffix are two separate UUID-derived values;
+  - the emitted challenge flag is `fmt.Sprintf("%s{%s_%s}", config.FlagPrefix, config.FlagMsg, c.Flag)`;
+  - therefore the visible 32-hex host prefix is not the hidden flag suffix.
+- Host scan on the resolved IP `160.30.99.158` found open TCP ports `22`, `8000`, and `9000`.
+  - `8000` serves the separate instanced challenge `Homework`.
+  - `9000` serves the separate instanced challenge `Confused Component`.
+  - These are infrastructure neighbors, not alternate ports for `cucumber farm`.
+- Full `-p-` host scan on 2026-07-04 briefly reported `10850/tcp open`, but immediate follow-up `nmap -sV`, `curl`, and raw `nc` probes treat it as non-responsive/filtered.
+  - Current assessment: `10850` was a false positive or transient scan artifact, not a usable management/API listener.
+- Public instancer API-mode follow-up on 2026-07-05 closes the "maybe the public host exposes `/flag` with a guessed token" branch further:
+  - `scratch/CTF-Instancer/router/router.go` shows `/flag` exists only in api mode and is protected by a separate instancer `Authorization: Token <config.Token>` check, not our provided CTFd user token;
+  - the public `chal3.teagod.tech:8001` service is clearly in web mode, where only `/`, `/create`, and `/destroy` exist;
+  - direct probes with the public sample defaults from the source (`testtoken` from `CTF-Instancer/.env.sample` and `testkey` from `CTFd-Instance-Challenge-Plugin/dummy.py`) stayed negative on both the instancer host and the live cucumber instance host:
+    - `/flag` returns plain-text `404 page not found`;
+    - the official instance endpoints still behave like the normal challenge app only.
+- Broader high-port raw-container scan on 2026-07-05 also weakens the "reach the backend directly outside the proxy" idea:
+  - `nmap` over high ports on `160.30.99.158` found transient/open ports such as `30144`, `34939`, and `34948`;
+  - `30144` is not HTTP and replies with strings like `X size: bad size` and `[debug] sizeof(Real) = 128`;
+  - `34939` / `34948` serve a different HTTP app titled `Component Vault` (`BaseHTTP/0.6 Python/3.12.13`), not cucumber farm;
+  - replaying the live cucumber `Host:` header against `34948` still serves `Component Vault`, not the farm.
+  - conclusion:
+    - the published high-port services visible on the shared host are unrelated neighbors, not a direct raw path to the cucumber backend.
+- Proxy-host follow-up on 2026-07-05 closes the adjacent port-index hostname idea:
+  - the real cucumber instance is the expected index-`0` proxy host such as `893a2c2dee5941b4a9f193c99338ba2e0.chal3.teagod.tech:8001`, where `/api/state`, `/.history`, and `/robots.txt` all behave normally.
+  - sibling hosts ending in `...e1`, `...e2`, and `...e3` do resolve, but they serve the instancer "Create New Instance" page, not alternate cucumber services:
+    - `/` -> instancer HTML;
+    - `/api/state`, `/.history`, `/robots.txt` -> plain-text `404 page not found`.
+  - conclusion:
+    - there is no extra hidden cucumber port/service exposed through adjacent proxy-index hostnames in this family.
+- Small OSINT-derived key pass over newly surfaced author/team strings (`viivie`, `viivie560`, `viivie560@gmail.com`, `viivie._.shark_`, `a fish`, `喵`) in `dumps/viivie_osint_key_probe.txt` found no MAC match.
+- Signature timing retest in `dumps/d338_signature_timing_25.txt` over wrong-digest prefixes of lengths `0,1,2,4,8,16,32,48,63` showed medians tightly clustered around `61-64 ms` with no monotonic prefix effect.
+  - Conclusion: no remotely useful timing oracle for digest-prefix brute forcing was observed.
+- Expanded Bang Dream / Ave Mujica / author/team key sweep in `scratch/probe_fandom_key_combos.py` / `dumps/fandom_key_combos.txt` tested 554,934 targeted candidate strings (1,109,868 derived keys) across multi-sample HMAC/prefix/suffix/sandwich/BLAKE2 formulas and found no match.
+- Token/PRNG branch on 2026-07-04:
+  - both `cc_session` and `actionToken` decode cleanly as 24-byte base64url payloads, so an unsafe `random.randbytes()` implementation was at least plausible;
+  - `scratch/test_token_prng.py` / `dumps/token_prng_test.txt` collected 120 fresh `/api/state` responses and tested MT recovery with `RandCrack` under the practical issuance-order and byte-order hypotheses:
+    - session+action, action+session, session-only, and action-only;
+    - little-endian and big-endian 32-bit word packing.
+  - Result: no mode predicted the next token(s), so the common MT-based token generator hypothesis is weakened substantially.
+- 2026-07-04 signer/source follow-up:
+  - `%00` path crash retest on the live `9764...` instance is still universal and uninformative:
+    - `/.history%00.py`, `/game.js%00.py`, `/api/state%00.py`, `/no-such-file%00.py`, `/%00.py`, and `/.history%00` all return empty `502` with only `Date` and `Content-Length: 0`;
+    - double-encoded `/.history%2500.py` remains a normal `404` with `SimpleHTTP/0.6 Python/3.13.14`.
+  - New affine-digest test in `scratch/analyze_digest_affine.py` / `dumps/digest_affine_analysis.txt` found no match across 10 backups for:
+    - `digest = public_hash(message) XOR mask`,
+    - `digest = public_hash(message) + mask (bytewise mod 256)`,
+    - `digest = public_hash(message) - mask (bytewise mod 256)`,
+    over raw/base64/hex/JSON/repr forms and MD5/SHA1/SHA2/SHA3/BLAKE2 hashes.
+  - Deeper nested source sweep around `/game`, `/data`, `/save`, `/backup`, `/state`, and `__pycache__` still found only the known `/`, `/robots.txt`, and `/.history` files.
+    - Concurrent timeout noise on `/data/__pycache__/load.cpython-312.pyc` and `/data/save/flag` reprobes serially as ordinary `404` HTML in `dumps/source_paths_nested_focus_serial_20260704.txt`.
+  - Later live Caido/raw reprobes on 2026-07-05 also collapse the remaining old timeout-looking file hits:
+    - `/data/events/auth.py`
+    - `/data/__pycache__/load.cpython-312.pyc`
+    - `/data/save/flag`
+    - fallback-surface `/api/state/../../badges.bak?x=1`
+    all return ordinary `404` HTML on a fresh live instance.
+  - consequence:
+    - the older timeout-like results were concurrency / expired-instance noise, not real exposed source files.
+  - Public instancer source confirms `/userid` is exactly the plain decimal CTFd user id string:
+    - `scratch/CTF-Instancer/models/auth/ctfd.go` returns `strconv.Itoa(users/me.id)`;
+    - `scratch/CTF-Instancer/models/instance/instance.go` writes that string to `/tmp/<id>/userid`, later mounted read-only as `/userid`.
+    - This closes the hidden-`userid`-format hypothesis; the mounted file should be `1497`, not a derived token.
+  - Instancer `/flag` exposure retest in `dumps/instancer_flag_probe_20260704.txt` is negative:
+    - `/flag?userid=1497` and `/api/flag?userid=1497` both return plain-text `404` on `chal3.teagod.tech:8001`, with or without `Authorization: Token <ctfd_token>`.
+- Public author OSINT tightened:
+  - `wha13.github.io/about/` identifies the challenge author as `William Lin`, also known as `whale XD`, `whale120`, and `wha13`;
+  - the page links the public repo `William957-web/My-CTF-Challenges` and blog `blog.whale-tw.com`;
+  - that repo currently contains `NoHackNoCTF/2025` sources and README links to NHNC 2024/2025 writeups only; no `NoHackNoCTF/2026` tree, branch, tag, or blog sitemap entry exists yet.
+- Additional `viivie` public-source follow-up on 2026-07-05:
+  - GitHub user search confirms `https://github.com/viivie`;
+  - public repos currently visible are `education-online`, `papermerge`, and `viivie.github.io`;
+  - cloned `viivie.github.io` contains only a minimal blog tree and no hits for `cucumber`, `小黃瓜`, `若葉睦`, `Mutsumi`, `No Hack No CTF`, `NHNC`, `pickle`, or `SimpleHTTP`;
+  - repo history exposes only the already-known author identity `viivie <viivie560@gmail.com>`;
+  - no public source/writeup leak for this challenge was found in that bounded pass.
+  - separate solver/source OSINT is also currently negative:
+    - cloned public repo `artifacts/vinsoc-ctf-writeups` contains only templates/skeleton content and no `NHNC`, `cucumber`, `viivie`, `chal3`, or challenge-specific hits;
+    - public repo `artifacts/jimmy-my-ctf-challenges` likewise contains no `cucumber farm` precursor or challenge-specific strings.
+  - host/operator-adjacent public surface stayed unhelpful:
+    - `https://teagod.tech` currently resolves to a public Facebook profile page;
+    - `crt.sh` for `teagod.tech` shows only wildcard coverage and `radius.teagod.tech`, with nothing challenge-specific.
+  - extra MAC/key sweep using the new public identifiers (`viivie.github.io`, `github.com/viivie`, `github.com/viivie/viivie.github.io`, `education-online`, `papermerge`, GitHub account creation/update dates, and small structured combinations) also found no match across the backup samples.
+  - expanded social-profile-derived key sweep on 2026-07-05 also found no match across the same samples for new atoms such as:
+    - `viivie 的貓窩`
+    - `a fish`
+    - `鯊魚貓娘`
+    - `我是誰呢誰知道呢? 我知道了！我是鯊魚娘`
+    - `CTF Player/Cyber Security/Networking`
+    - `Student / CTF player / Developer / Cybersecurity / Reverse / Web exploitation`
+    - `home.gamer.com.tw/viivie560`
+    - `threads.com/@viivie._.shark_`
+    - `instagram.com/viivie._.shark_`
+  - small redeem-code pass over those same social/profile strings and obvious uppercase derivatives (`VIIVIE`, `SHARK`, `AFISH`, `ITSNEVERSUN`, `BAHAMUT`, etc.) found no additional valid codes beyond `WELCOME`.
+  - public Sourcegraph stream-search follow-up on 2026-07-05 also stayed negative:
+    - `context:global flag-cucumber`
+    - `context:global "金色小黃瓜"`
+    - `context:global cc_session actionToken`
+    all completed with `matchCount: 0`, so no public indexed source tree currently exposes the challenge-specific strings or the cookie/token pair.
+  - direct GitHub code-search API follow-up on 2026-07-05 is also negative:
+    - exact searches for `"flag-cucumber"`, `"Wakaba Mutsumi Farm"`, and `"X-Action-Token" "cc_session"` each returned `{"total_count":0}` via `gh api search/code`;
+    - this further weakens the public-repo/source-leak branch.
+  - additional exact-string public-source searches on 2026-07-05 also stayed negative:
+    - GitHub code search for the live Chinese error strings and item text such as `動作已過期，請再試一次。`, `存檔讀取失敗。`, and `金色小黃瓜` each returned `{"total_count":0}`;
+    - general web search over combinations like `若葉睦的小黃瓜農場`, `金色小黃瓜`, `貓來踩鍵盤`, `暴富事件`, `午後陣雨`, and `手指抗議` produced only irrelevant fandom/news results, not public source or writeups.
+  - interpretation:
+    - if the challenge source or writeup is public anywhere, it is not currently indexed under the exact live strings.
+- Python `__pycache__` / versioned `.pyc` disclosure follow-up on 2026-07-05:
+  - new concurrent probe script: `scratch/fuzz_pyc313_paths.py`
+  - output: `dumps/pyc313_paths_20260705.txt`
+  - scope:
+    - root, `/game`, `/data`, `/static`, `/api`, `/game/data`
+    - direct `module.cpython-{312,313,314}.pyc`
+    - and `__pycache__/module.cpython-{312,313,314}.pyc`
+    - across the same high-signal module names used in earlier source sweeps.
+  - result:
+    - no real non-404 `.pyc` hits were found;
+    - the concurrent pass produced some connect-timeout noise under load;
+    - serial reprobes of the most interesting `cpython-313` timeout candidates (`/api/farm.cpython-313.pyc`, `/api/flag.cpython-313.pyc`, `/api/game.cpython-313.pyc`, `/data/__pycache__/api.cpython-313.pyc`, `/game/data/handler.cpython-313.pyc`, `/secret.cpython-313.pyc`, `/session.cpython-313.pyc`, etc.) all collapse to ordinary 404 HTML.
+  - conclusion: there is no evidence of exposed Python bytecode under the expected 3.13 naming scheme.
+  - Additional optimized-bytecode follow-up on 2026-07-05 also stayed negative:
+    - new serial probe script: `scratch/probe_pyc_opt_paths.py`
+    - output: `dumps/pyc_opt_paths_20260705.txt`
+    - scope:
+      - root, `/api`, `/game`, `/data`, `/game/data`, and `/game/logic`
+      - direct `module.cpython-313.opt-1.pyc` / `.opt-2.pyc`
+      - and `__pycache__/module.cpython-313.opt-1.pyc` / `.opt-2.pyc`
+      - across the same high-signal module names (`app`, `server`, `save`, `load`, `signer`, `secret`, `session`, `events`, `codes`, `config`, etc.).
+      - both direct paths and the confirmed fallback surface `/api/state/../../...?...` were tested.
+    - implementation note:
+      - to avoid DNS/timeout noise from the long serial pass, the probe connected directly to `160.30.99.158:8001` while preserving the live instance hostname in the `Host` header.
+    - result:
+      - `checkedPaths 624`
+      - `interestingCount 0`
+    - conclusion:
+      - there is still no evidence of exposed Python bytecode, even under the optimized `-O`/`-OO` filename variants that were not covered by the earlier `cpython-313.pyc` sweep.
+  - Additional bounded public-page-text signer sweep on 2026-07-05 (`scratch/probe_author_page_text_keys.py` / `dumps/author_page_text_key_probe_20260705.txt`) also stayed negative:
+    - reachable author-related pages scraped in this pass:
+      - `https://viivie.github.io/`
+      - `https://www.threads.com/@viivie._.shark_`
+      - `https://www.instagram.com/viivie._.shark_/`
+      - `https://github.com/viivie`
+      - `https://wha13.github.io/about/`
+      - `https://blog.whale-tw.com/`
+    - after stripping HTML and extracting line/text tokens plus simple spacing/case variants, the script tested `2,797` candidate strings (`11,188` derived keys) across the same HMAC/prefix/suffix/sandwich/SHA-512-truncation/keyed-BLAKE2 family and found `no match`.
+    - interpretation:
+      - if the backup signer key is human-readable, it is probably not a straightforward public author bio/title/phrase from the currently reachable pages.
+  - Final bounded author-derived key sweep in `scratch/probe_author_key_combos.py` / `dumps/author_key_combos.txt` tested 18,602 public-author/challenge candidate strings (`111,612` derived keys across raw/lower/upper/SHA1/SHA256/MD5x2) against HMAC/prefix/suffix/sandwich MD5/SHA1/SHA256, SHA-512 truncation, and keyed BLAKE2s/BLAKE2b-32 formulas.
+    - Result: `no match`.
+  - New GitHub-metadata signer follow-up on 2026-07-05 also stayed negative:
+    - script: `scratch/probe_github_metadata_keys.py`
+    - output: `dumps/github_metadata_key_probe_20260705.txt`
+    - scope expanded beyond page text into public GitHub API metadata for:
+      - user `viivie` (`id=168825328`, `node_id=U_kgDOChAR8A`, `created_at=2024-05-03T10:56:25Z`, `updated_at=2026-02-22T15:15:20Z`, email, URLs);
+      - repos `viivie.github.io`, `education-online`, `papermerge`, and `sondt99/VinSOC-RnD-Blog`;
+      - repo names, full names, URLs, branch names, repo timestamps, recent commit SHAs / short SHAs, commit dates, and leading commit-message lines.
+    - candidate volume:
+      - `86878` candidate strings
+      - `521268` derived keys after raw/lower/upper/SHA1/SHA256/MD5x2 expansion
+    - formulas checked:
+      - the same HMAC/prefix/suffix/sandwich MD5/SHA1/SHA256 family
+      - SHA-512 truncation
+      - keyed BLAKE2s/BLAKE2b-32
+    - result: `no match`.
+  - Separate public-writeup/source follow-up on 2026-07-05:
+    - cloned `sondt99/VinSOC-RnD-Blog`, which is a newer public VinSOC site repo than the older skeleton writeup repo;
+    - exact-string search over challenge markers (`cucumber`, `若葉睦`, `小黃瓜`, `NHNC`, `teagod`, `chal3`, `flag-cucumber`, `X-Action-Token`, `cc_session`) found no challenge source or writeup content there either.
+
+## Current Risk Ranking
+
+High-interest remaining surfaces:
+
+1. Backup signature/key/source issue
+   - Most likely path if intended lesson is unsafe pickle restore with signature verification.
+   - Current blocker: key/source not leaked and digest construction not matched.
+   - New per-user binding hypothesis weakened:
+     - authenticated CTFd API reveals our user/team identifiers (`user_id=1497`, `team_id=856`, `name=hajjilla`, `team=ite25`);
+     - targeted MAC probes with those identifiers as string/binary keys still found no match.
+   - Additional weakeners after the latest turn:
+     - simple affine-mask digest constructions over public hashes are now ruled out;
+     - mounted `/userid` is confirmed to be the plain known string `1497`, so there is no hidden per-user token hiding there;
+     - public author-name/blog/repo identifiers also failed in a bounded signer sweep.
+     - the canonical re-pickle bypass idea is weaker:
+       - semantic-equivalent malicious pickles with reused original digests fail across protocols `0/2/4/5`.
+     - `save`-race-based intermediate signed-state generation is now substantially weakened:
+       - broad and focused same-token `save` + action probes only produced pre-action signed backups or stale-token `409`s, not mixed states.
+     - newer race candidates are weaker too:
+       - `load(pre-spend)` vs purchase only yields ordinary winner-takes-all outcomes;
+     - `redeem(WELCOME)` vs `load(empty)` only yields ordinary winner-takes-all outcomes;
+       - concurrent `GET /api/state` reads did not multiply passive income.
+       - slow-body `load` and slow-body ordinary JSON mutations permit dual `200` responses, but the final state still follows normal completion-order semantics and does not preserve a profitable alternate branch, stale cost, or overspend condition.
+       - paused-load branch-save does preserve richer alternate signed states, but a path that merges those states back into live value has not been found.
+       - pre-admitted same-token replay across a rollback load also stayed ordinary:
+         - queued seed purchases, cat clicks, and badge buys do not survive the rollback into a later replayed `WELCOME` branch.
+     - parser-level desync signs are weaker too:
+       - conflicting duplicate `Content-Length` headers are rejected with front-side `400 Bad Request`, not forwarded as a CL.CL smuggle candidate.
+2. Server logic edge case not yet modeled
+   - A subtle ordering, type, timestamp, or state recomputation bug might still bypass the `flag-cucumber` price.
+3. Missed disclosure path
+   - Static/source enumeration is broad but not proof-complete; Python `SimpleHTTP` custom handler may have a narrow path quirk.
+
+Lower-interest surfaces:
+
+- Grinding: infeasible.
+- Extra redeem codes from visible/theme/state vocabulary: bounded sweeps negative beyond `WELCOME`.
+- Header spoofing: tested negative.
+- Integer overflow/non-finite direct inputs: tested negative.
+- Race/double spend: tested negative.
+- Hidden UI fields: tested negative by actual browser/Caido captures.
+- GIF/JPEG stego: parked unless web paths exhaust again.
+
+## Current Hypothesis
+
+The educational lesson is probably one of:
+
+- signed pickle restore with a recoverable key or parser/signature confusion;
+- a source/config disclosure hidden behind Python `SimpleHTTP` path handling.
+
+Authenticated challenge metadata from official CTFd now confirms:
+
+- Challenge API access with our token works for:
+  - `GET /api/v1/users/me`
+  - `GET /api/v1/challenges`
+  - `GET /api/v1/challenges/17`
+- For `cucumber farm` specifically:
+  - challenge id `17`
+  - category `viivie`
+  - type `dynamic` / `type_data.id = "dynamic"`
+  - no attached files (`files: []`)
+  - no hints (`hints: []`)
+  - currently `2` solves
+- Authenticated team-solves API now shows:
+  - `W4llz` (`team_id=488`, `user_id=848`) at `2026-07-04T09:59:14.657362Z`;
+  - `VinSOC` at `2026-07-05T06:45:44.531418Z`.
+- Public-solver OSINT follow-up stayed negative:
+  - live `w4llz.me` blog/sitemap/bundles checked on 2026-07-04 do not expose an NHNC 2026 or `cucumber farm` writeup;
+  - the older `whale120 / William Lin / wha13` author branch is now treated as likely unrelated to this specific `viivie` challenge and should stay deprioritized unless new evidence ties it back.
+- Additional bounded public-source / writeup searches on 2026-07-05 are still negative:
+  - web searches over exact challenge strings and internal game text (`cucumber farm`, `若葉睦的小黃瓜農場`, `金色小黃瓜`, `貓來踩鍵盤`, `暴富事件`, `午後陣雨`, `手指抗議`) found only irrelevant noise;
+  - public code/repo searches over the live host strings and challenge names likewise found no challenge source or writeup leak.
+- Additional official CTFd/API follow-up on 2026-07-05:
+  - official host confirmed as `https://nhnc.ic3dt3a.org`;
+  - authenticated API still works normally when sent with the exact header shape used by the public instancer source:
+    - `Authorization: Token <ctfd_token>`
+    - `Content-Type: application/json`
+  - corrected current authenticated metadata:
+    - `GET /api/v1/users/me` -> user `hajjilla`, `id=1497`, `team_id=856`, place `62nd`, score `1549`;
+    - `GET /api/v1/challenges/17` -> still `dynamic`, category `viivie`, `type_data.id = "dynamic"`, `files: []`, `hints: []`, solves `2`;
+    - `GET /api/v1/challenges/17/solves` -> current solves are `W4llz` at `2026-07-04T09:59:14.657362Z` and `VinSOC` at `2026-07-05T06:45:44.531418Z`;
+    - `GET /api/v1/teams/488` -> team `W4llz`, members `[848, 910, 1020, 1244]`, place `1st`, score `9165`;
+    - `GET /api/v1/users/848` -> `W4llz`;
+    - `GET /api/v1/users/910` -> `web2-guy`;
+    - `GET /api/v1/users/1020` -> `Jayce`;
+    - `GET /api/v1/users/1244` -> `Cyberdyne Systems Series 800`.
+  - endpoint-access correction:
+    - earlier notes about authenticated API `302` responses were due to a mis-test and should be treated as obsolete;
+    - authenticated `GET /api/v1/submissions` still returns `403`, so solver submission contents remain unavailable.
+  - official challenge-view metadata also closes the custom challenge-plugin branch more cleanly:
+    - `dumps/ctfd_challenge17_auth.json` shows `type = "dynamic"` and `type_data.id = "dynamic"`;
+    - the returned `type_data.templates.view` is `/plugins/dynamic_challenges/assets/view.html`;
+    - the returned `type_data.scripts.view` is `/plugins/dynamic_challenges/assets/view.js`;
+    - the embedded `view` HTML in the same JSON is the stock dynamic submission modal, not a custom instance/plugin render path.
+  - consequence:
+    - the public `CTFd-Instance-Challenge-Plugin` verifier code is very likely unrelated to this specific challenge deployment and should be deprioritized.
+  - direct instance-plugin route probes on the official host:
+    - `/plugins/CTFd-Instance-Challenge-Plugin/status/17`
+    - `/plugins/CTFd-Instance-Challenge-Plugin/create/17`
+    - `/plugins/CTFd-Instance-Challenge-Plugin/destroy/17`
+    all return ordinary HTML `404`.
+  - combined with `dumps/ctfd_challenge17_auth.json` showing challenge `17` as ordinary type `dynamic`, this weakens the "plugin-specific verifier/config leak" branch substantially.
+  - nuance:
+    - a stock `dynamic` challenge type does not by itself rule out a separate custom flag verifier plugin on the CTFd side;
+    - however no public route, JSON field, or exposed config seen so far leaks the upstream instancer API endpoint or API key that such a verifier would need.
+
+The restore-path state bug hypothesis is weaker now:
+
+- expired `activeEvents` are sanitized away on load;
+- after load, the next re-save neutralizes `lastClickAt` to `0.0`, while ordinary live-play saves still preserve a non-epoch `lastClickAt`;
+- both same-instance and cross-instance retests show the first post-load click then repopulates `lastClickAt` normally and does not create abnormal gain/fatigue behavior;
+- only historical `eventCooldowns` survive invisibly through load/save, which has not yielded leverage so far.
+
+## Next Tests
+
+1. Keep the backup-signature path primary: test a few more structured key-derivation ideas and compare more samples for any non-HMAC pattern.
+2. Revisit the new paused-load branch-save rollback bug specifically for any state-merge, inventory-transfer, or redeem-reset path that turns alternate signed states into net live profit rather than mere snapshot preservation.
+3. Keep the `/api/state/../../...?...` route-miss fallback only for bounded targeted filename checks; broad timeout-chasing on old source/config guesses is now weak.
+4. Continue bounded server-logic probing around valid action flows, malformed-but-valid-token requests, and partial-mutation/error-path behavior outside the already-bounded race families.
+5. Treat cat/click/event grinding as closed unless a real state-merge primitive appears; richer upgrades/checkpoints do not change that conclusion.
+6. Only after those: revisit true last-resort secret guessing from structured theme/token/user/team combinations.
+
+## Key Local Artifacts
+
+- `dumps/game.js`, `dumps/styles.css`, `dumps/history.txt`
+- `dumps/ui_*` actual browser request/response captures
+- `dumps/e1_initial.bak`, `dumps/ui_saved_backup.bak`, `dumps/e1_cps_backup.bak`
+- `dumps/c003_restore_sanitization.txt`
+- `dumps/restore_timing_cross_instance_20260705T004743Z.json`
+- `dumps/load_backup_timing_20260705T005049Z.json`
+- `dumps/c003_state_query_token_scope.txt`
+- `dumps/structured_key_combos.txt`
+- `dumps/e1_backup_variants.txt`
+- `dumps/e1_length_extension.txt`
+- `dumps/e1_known_endpoint_variants.txt`
+- `dumps/e1_offline_replay_probe.txt`
+- `dumps/dcbc_state_math_probe.txt`
+- `scratch/probe_backup_variants.py`
+- `scratch/probe_api_edges.py`
+- `scratch/probe_state_control.py`
+- `scratch/probe_length_extension.py`
+- `scratch/probe_visible_string_keys.py`
+- `scratch/sim_economy.py`
+- `scratch/probe_consumable_fatigue.py`
+- `scratch/probe_cross_instance_restore_timing.py`
+- `scratch/probe_load_backup_timing.py`
+- `scratch/CTF-Instancer/`
+- `dumps/consumable_fatigue_probe.txt`
+- `dumps/ctfd_users_me.json`
+- `dumps/ctfd_challenges_auth.json`
+- `dumps/ctfd_challenge17_auth.json`
+- `dumps/userid_key_probe.txt`
+- `dumps/instancer_key_probe.txt`
+- `dumps/digest_affine_analysis.txt`
+- `dumps/nul_probe_continue.txt`
+- `dumps/source_paths_nested_focus_20260704.txt`
+- `dumps/source_paths_nested_focus_serial_20260704.txt`
+- `dumps/instancer_flag_probe_20260704.txt`
+- `dumps/w4llz_members.txt`
+- `dumps/author_key_combos.txt`
+- `dumps/c448_save_action_mix.txt`
+- `dumps/c448_save_action_mix_focus.txt`
+- `dumps/canonical_pickle_signature_20260705.txt`
+- `dumps/pyc313_paths_20260705.txt`
+- `dumps/load_purchase_races_20260705.txt`
+- `dumps/redeem_load_followup_safe_20260705.txt`
+- `dumps/state_progress_race_20260705.txt`
+- `dumps/slow_load_token_timing_20260705.txt`
+- `dumps/slow_mutation_timing_20260705.txt`
+- `dumps/multi_slow_same_token_20260705.txt`
+- `dumps/slow_redeem_batch_20260705.json`
+- `dumps/pbkdf2_signature_probe_20260705.txt`
+- `dumps/pipeline_same_token_20260705.txt`
+- `dumps/pipeline_click_raw_20260705.bin`
+- `dumps/chunked_smuggle_probe_20260705.bin`
+- `dumps/data_format_paths_20260705.txt`
+- `dumps/redeem_multilingual_20260705.txt`
+- `dumps/state_derived_codes_20260705.txt`
+- `dumps/paused_load_branch_save_20260705.txt`
+- `dumps/rollback_leakage_sequences_20260705.txt`
+- `dumps/slow_event_batching_20260705.txt`
+- `dumps/rich_cat_benchmark_20260705.json`
+- `dumps/rich_cat_bound_20260705.txt`
+- `dumps/slow_action_then_load_20260705.txt`
+- `dumps/slow_action_then_load_20260705_v2.txt`
+- `dumps/idle_passive_duplication_20260705.txt`
+- `dumps/cross_snapshot_token_branches_20260705.txt`
+- `dumps/double_paused_loads_20260705.txt`
+- `dumps/interleaved_queued_load_redeem_20260705.txt`
+- `dumps/stale_error_branch_token_20260705.txt`
+- `dumps/nested_data_paths_v2_20260705.txt`
+- `dumps/mutsumi_key_combos_20260705.txt`
+- `dumps/source_backup_suffix_probe_20260705.txt`
+- `dumps/viivie_events_api_20260705.json`
+- `dumps/viivie_repos_api_20260705.json`
+- `dumps/viivie_gists_api_20260705.json`
+- `dumps/viivie_orgs_api_20260705.json`
+- `scratch/analyze_digest_affine.py`
+- `scratch/probe_author_key_combos.py`
+- `scratch/probe_save_action_mix.py`
+- `scratch/fuzz_pyc313_paths.py`
+- `scratch/probe_canonical_pickle_signature.py`
+- `scratch/probe_load_purchase_races.py`
+- `scratch/probe_redeem_load_followup_safe.py`
+- `scratch/probe_state_progress_race.py`
+- `scratch/probe_slow_load_token_timing.py`
+- `scratch/probe_slow_mutation_timing.py`
+- `scratch/probe_multi_slow_same_token.py`
+- `scratch/probe_slow_redeem_batch.py`
+- `scratch/probe_pbkdf2_signature.py`
+- `scratch/probe_paused_load_branch_save.py`
+- `scratch/probe_rollback_leakage_sequences.py`
+- `scratch/probe_slow_event_batching.py`
+- `scratch/probe_rich_cat_benchmark.py`
+- `scratch/sim_rich_cat_bound.py`
+- `scratch/probe_slow_action_then_load.py`
+- `scratch/probe_idle_passive_duplication.py`
+- `scratch/probe_cross_snapshot_token_branches.py`
+- `scratch/probe_double_paused_loads.py`
+- `scratch/probe_interleaved_queued_load_redeem.py`
+- `scratch/probe_stale_error_branch_token.py`
+- `scratch/probe_nested_data_paths_v2.py`
+- `scratch/probe_mutsumi_key_combos.py`
+- `scratch/probe_state_derived_codes.py`

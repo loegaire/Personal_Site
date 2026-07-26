@@ -1,0 +1,40 @@
+---
+import type { AnyPost } from '../utils/content';
+import { formatDate, labelForKind, labelForStatus, postPath } from '../utils/content';
+
+interface Props {
+  post: AnyPost;
+  index?: number;
+  compact?: boolean;
+}
+
+const { post, index = 0, compact = false } = Astro.props;
+---
+
+<article
+  class:list={[
+    'post-card',
+    `post-card--${index % 4}`,
+    { 'post-card--compact': compact, 'post-card--partial': post.data.status === 'partial' },
+  ]}
+>
+  <a class="post-card__hit" href={postPath(post)} aria-label={`Read ${post.data.title}`}></a>
+  <div class="post-card__number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</div>
+  <div class="post-card__meta">
+    <span class:list={['status-chip', `status-chip--${post.data.status}`]}>
+      {labelForStatus(post.data.status)}
+    </span>
+    <span>{labelForKind(post.data.kind)}</span>
+    <span>{post.data.readingTime} min</span>
+  </div>
+  <h3><a href={postPath(post)}>{post.data.title}</a></h3>
+  {!compact && <p>{post.data.description}</p>}
+  <div class="post-card__footer">
+    <span>{post.data.event}</span>
+    <span>{post.data.category}</span>
+    <time datetime={post.data.updated.toISOString()}>{formatDate(post.data.updated)}</time>
+  </div>
+  <svg class="post-card__arrow" viewBox="0 0 52 32" aria-hidden="true">
+    <path d="M2 16h43M32 3l13 13-13 13" />
+  </svg>
+</article>

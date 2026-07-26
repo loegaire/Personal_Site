@@ -1,0 +1,146 @@
+---
+import type { MarkdownHeading } from 'astro';
+import type { AnyPost } from '../utils/content';
+import BaseLayout from './BaseLayout.astro';
+import PostCard from '../components/PostCard.astro';
+import {
+  formatDate,
+  labelForKind,
+  labelForStatus,
+  withBase,
+} from '../utils/content';
+
+interface Props {
+  post: AnyPost;
+  headings: MarkdownHeading[];
+  previous?: AnyPost;
+  next?: AnyPost;
+}
+
+const { post, headings, previous, next } = Astro.props;
+const toc = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
+---
+
+<BaseLayout title={`${post.data.title} — Field Archive`} description={post.data.description} article>
+  <div class="reading-progress" data-reading-progress aria-hidden="true"></div>
+  <article class="record">
+    <header class="record-hero">
+      <div class="record-hero__slashes" aria-hidden="true"></div>
+      <a class="eyebrow-link" href={withBase('/archive/')}>
+        <span>←</span> Return to archive
+      </a>
+      <div class="record-hero__kicker">
+        <span class:list={['status-chip', `status-chip--${post.data.status}`]}>
+          {labelForStatus(post.data.status)}
+        </span>
+        <span>{labelForKind(post.data.kind)}</span>
+        <span>{post.data.category}</span>
+      </div>
+      <h1>{post.data.title}</h1>
+      <p class="record-hero__lede">{post.data.description}</p>
+      <div class="record-hero__ledger">
+        <div><small>Operation</small><strong>{post.data.event}</strong></div>
+        <div><small>Updated</small><strong>{formatDate(post.data.updated)}</strong></div>
+        <div>
+          <small>Read time</small>
+          <strong>{post.data.readingTime} {post.data.readingTime === 1 ? 'minute' : 'minutes'}</strong>
+        </div>
+        <div><small>Record</small><strong>{post.data.wordCount.toLocaleString()} words</strong></div>
+      </div>
+    </header>
+
+    <div class="record-shell">
+      <aside class="record-aside" aria-label="Article tools">
+        <div class="record-aside__inner">
+          {toc.length > 1 && (
+            <nav class="toc" aria-label="On this page">
+              <p>On this page</p>
+              <ol>
+                {toc.map((heading) => (
+                  <li class:list={[`toc-depth-${heading.depth}`]}>
+                    <a href={`#${heading.slug}`}>{heading.text}</a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )}
+          <div class="record-tools">
+            <button type="button" data-copy-link>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
+              </svg>
+              <span data-copy-label>Copy link</span>
+            </button>
+            <button type="button" data-reading-mode>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H20v16H7.5A3.5 3.5 0 0 0 4 21.5v-16Z" />
+                <path d="M4 21.5A3.5 3.5 0 0 1 7.5 18" />
+              </svg>
+              Focus mode
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div class="record-main">
+        <div class="prose">
+          <slot />
+        </div>
+
+        <footer class="record-end">
+          <div class="record-end__mark" aria-hidden="true">END / EOF</div>
+          {post.data.attachment && (
+            <div>
+              <a class="button button--ember" href={post.data.attachment}>Download original attachment</a>
+            </div>
+          )}
+        </footer>
+      </div>
+    </div>
+  </article>
+
+  {(previous || next) && (
+    <section class="adjacent-records section-shell" aria-labelledby="keep-reading-title">
+      <div class="section-heading">
+        <p class="eyebrow">Continue the trail</p>
+        <h2 id="keep-reading-title">Adjacent records</h2>
+      </div>
+      <div class="adjacent-records__grid">
+        {previous && <PostCard post={previous} compact index={0} />}
+        {next && <PostCard post={next} compact index={1} />}
+      </div>
+    </section>
+  )}
+
+  <script>
+    const progress = document.querySelector<HTMLElement>('[data-reading-progress]');
+    const article = document.querySelector<HTMLElement>('.record-main');
+    const copyButton = document.querySelector<HTMLButtonElement>('[data-copy-link]');
+    const copyLabel = document.querySelector<HTMLElement>('[data-copy-label]');
+    const readingMode = document.querySelector<HTMLButtonElement>('[data-reading-mode]');
+
+    const updateProgress = () => {
+      if (!progress || !article) return;
+      const rect = article.getBoundingClientRect();
+      const total = article.offsetHeight - window.innerHeight;
+      const amount = Math.min(1, Math.max(0, -rect.top / Math.max(1, total)));
+      progress.style.setProperty('--reading-progress', `${amount * 100}%`);
+    };
+
+    document.addEventListener('scroll', updateProgress, { passive: true });
+    updateProgress();
+
+    copyButton?.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(window.location.href);
+      if (copyLabel) copyLabel.textContent = 'Copied';
+      window.setTimeout(() => {
+        if (copyLabel) copyLabel.textContent = 'Copy link';
+      }, 1600);
+    });
+
+    readingMode?.addEventListener('click', () => {
+      document.body.classList.toggle('focus-reading');
+      readingMode.setAttribute('aria-pressed', String(document.body.classList.contains('focus-reading')));
+    });
+  </script>
+</BaseLayout>

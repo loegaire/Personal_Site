@@ -1,0 +1,179 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { sortPosts, type AnyPost } from '../../utils/content';
+
+const writeups = await getCollection('writeups');
+const research = await getCollection('research');
+const posts = sortPosts([...writeups, ...research] as AnyPost[]);
+const categories = [...new Set(posts.map((post) => post.data.category))].sort();
+const events = [...new Set(posts.map((post) => post.data.event))].sort();
+---
+
+<BaseLayout
+  title="Archive — Field Archive"
+  description="Search every CTF writeup, field note, and research record in the archive."
+>
+  <header class="page-hero page-hero--archive">
+    <div>
+      <p class="eyebrow">Complete CTF ledger</p>
+      <h1>THE<br /><span>ARCHIVE.</span></h1>
+    </div>
+    <p>
+      A personal collection of CTF and cybersecurity writeups covering reverse engineering,
+      exploitation, forensics, and miscellaneous challenges.
+    </p>
+    <div class="page-hero__count"><strong>{posts.length}</strong><span>indexed<br />records</span></div>
+  </header>
+
+  <section class="archive-shell" data-archive>
+    <div class="archive-controls">
+      <label class="search-field" for="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m15.5 15.5 5 5" />
+        </svg>
+        <span class="sr-only">Search records</span>
+        <input
+          id="search"
+          type="search"
+          placeholder="Search titles, events, techniques…"
+          autocomplete="off"
+          data-search
+        />
+        <kbd>/</kbd>
+      </label>
+
+      <div class="archive-selects">
+        <label>
+          <span>Discipline</span>
+          <select id="category-filter" name="category" data-category>
+            <option value="">All disciplines</option>
+            {categories.map((category) => <option value={category}>{category}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Operation</span>
+          <select id="event-filter" name="event" data-event>
+            <option value="">All events</option>
+            {events.map((event) => <option value={event}>{event}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="status-filter" name="status" data-status>
+            <option value="">All statuses</option>
+            <option value="solved">Solved</option>
+            <option value="partial">In progress</option>
+            <option value="reference">Reference</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="kind-tabs" role="group" aria-label="Record type">
+        <button class="is-active" type="button" data-kind="">Everything</button>
+        <button type="button" data-kind="writeup">Writeups</button>
+        <button type="button" data-kind="field-note">Field notes</button>
+        <button type="button" data-kind="research">Research</button>
+      </div>
+
+      <div class="archive-result-line" aria-live="polite">
+        <span data-result-count>{posts.length} records</span>
+        <button type="button" data-reset>Clear filters</button>
+      </div>
+    </div>
+
+    <div class="archive-grid" data-results>
+      {posts.map((post, index) => (
+        <div
+          data-record
+          data-title={post.data.title.toLowerCase()}
+          data-description={post.data.description.toLowerCase()}
+          data-category={post.data.category}
+          data-event={post.data.event}
+          data-status={post.data.status}
+          data-kind={post.data.kind}
+          data-tags={post.data.tags.join(' ').toLowerCase()}
+        >
+          <PostCard post={post} index={index} />
+        </div>
+      ))}
+    </div>
+
+    <div class="archive-empty" data-empty hidden>
+      <span aria-hidden="true">×</span>
+      <h2>No signal found.</h2>
+      <p>Try a broader term or clear one of the filters.</p>
+      <button class="button button--strike" type="button" data-reset>Reset archive</button>
+    </div>
+  </section>
+
+  <script>
+    const archive = document.querySelector<HTMLElement>('[data-archive]');
+    if (archive) {
+      const search = archive.querySelector<HTMLInputElement>('[data-search]');
+      const category = archive.querySelector<HTMLSelectElement>('[data-category]');
+      const event = archive.querySelector<HTMLSelectElement>('[data-event]');
+      const status = archive.querySelector<HTMLSelectElement>('[data-status]');
+      const kindButtons = [...archive.querySelectorAll<HTMLButtonElement>('[data-kind]')];
+      const records = [...archive.querySelectorAll<HTMLElement>('[data-record]')];
+      const count = archive.querySelector<HTMLElement>('[data-result-count]');
+      const empty = archive.querySelector<HTMLElement>('[data-empty]');
+      let kind = '';
+
+      const apply = () => {
+        const query = search?.value.trim().toLowerCase() || '';
+        let visible = 0;
+        for (const record of records) {
+          const haystack = `${record.dataset.title} ${record.dataset.description} ${record.dataset.tags}`;
+          const matches =
+            (!query || haystack.includes(query)) &&
+            (!category?.value || record.dataset.category === category.value) &&
+            (!event?.value || record.dataset.event === event.value) &&
+            (!status?.value || record.dataset.status === status.value) &&
+            (!kind || record.dataset.kind === kind);
+          record.hidden = !matches;
+          if (matches) visible += 1;
+        }
+        if (count) count.textContent = `${visible} ${visible === 1 ? 'record' : 'records'}`;
+        if (empty) empty.hidden = visible !== 0;
+      };
+
+      const reset = () => {
+        if (search) search.value = '';
+        if (category) category.value = '';
+        if (event) event.value = '';
+        if (status) status.value = '';
+        kind = '';
+        kindButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.kind === ''));
+        history.replaceState({}, '', window.location.pathname);
+        apply();
+      };
+
+      [search, category, event, status].forEach((control) => control?.addEventListener('input', apply));
+      kindButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          kind = button.dataset.kind || '';
+          kindButtons.forEach((candidate) => candidate.classList.toggle('is-active', candidate === button));
+          apply();
+        });
+      });
+      archive.querySelectorAll<HTMLButtonElement>('[data-reset]').forEach((button) => button.addEventListener('click', reset));
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === '/' && document.activeElement?.tagName !== 'INPUT') {
+          event.preventDefault();
+          search?.focus();
+        }
+      });
+
+      const params = new URLSearchParams(window.location.search);
+      const initialCategory = params.get('category');
+      if (initialCategory && category && [...category.options].some((option) => option.value === initialCategory)) {
+        category.value = initialCategory;
+      }
+      apply();
+    }
+  </script>
+</BaseLayout>

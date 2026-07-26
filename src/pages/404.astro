@@ -1,0 +1,14 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../utils/content';
+---
+
+<BaseLayout title="404 — Signal Lost">
+  <section class="not-found">
+    <span>404</span>
+    <p class="eyebrow">Page not found</p>
+    <h1>This record is unavailable.</h1>
+    <p>The page may have moved or the link may be incorrect.</p>
+    <a class="button button--strike" href={withBase('/archive/')}>Return to the archive</a>
+  </section>
+</BaseLayout>

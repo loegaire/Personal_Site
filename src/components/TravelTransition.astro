@@ -1,0 +1,90 @@
+---
+const embers = Array.from({ length: 18 }, (_, index) => ({
+  x: (index * 37 + 11) % 100,
+  delay: (index * 0.47) % 6,
+  duration: 6 + (index % 5) * 1.4,
+  size: 2 + (index % 4),
+}));
+---
+
+<div class="ambient-embers" aria-hidden="true">
+  {embers.map((ember) => (
+    <i
+      style={`--ember-x:${ember.x}%;--ember-delay:${ember.delay}s;--ember-duration:${ember.duration}s;--ember-size:${ember.size}px`}
+    ></i>
+  ))}
+</div>
+
+<div class="travel-transition" data-travel-transition aria-hidden="true">
+  <div class="travel-transition__panel travel-transition__panel--left"></div>
+  <div class="travel-transition__panel travel-transition__panel--right"></div>
+  <div class="travel-map">
+    <p>Crossing the archive</p>
+    <svg viewBox="0 0 520 210" role="presentation">
+      <path class="travel-map__shadow" d="M18 170 C94 112 126 152 192 90 S310 24 374 78 S446 142 504 38" />
+      <path class="travel-map__route" d="M18 170 C94 112 126 152 192 90 S310 24 374 78 S446 142 504 38" />
+      <g class="travel-map__nodes">
+        <circle cx="18" cy="170" r="8" />
+        <circle cx="192" cy="90" r="8" />
+        <circle cx="374" cy="78" r="8" />
+        <circle cx="504" cy="38" r="11" />
+      </g>
+    </svg>
+    <strong data-travel-label>Next record</strong>
+  </div>
+</div>
+
+<script>
+  const overlay = document.querySelector<HTMLElement>('[data-travel-transition]');
+  const label = document.querySelector<HTMLElement>('[data-travel-label]');
+  const base = import.meta.env.BASE_URL;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  const resetTravel = () => {
+    overlay?.classList.remove('is-covering');
+    document.body.classList.remove('navigation-locked');
+  };
+
+  window.addEventListener('pageshow', resetTravel);
+
+  if (document.documentElement.classList.contains('travel-arrival')) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => document.documentElement.classList.remove('travel-arrival'));
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const anchor = target.closest<HTMLAnchorElement>('a[href]');
+    if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+
+    const url = new URL(anchor.href, window.location.href);
+    if (url.origin !== window.location.origin || !url.pathname.startsWith(base)) return;
+    if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+    if (url.pathname.includes('/media/')) return;
+
+    event.preventDefault();
+    if (label) {
+      const destination = anchor.getAttribute('aria-label') || anchor.textContent || 'Next record';
+      label.textContent = destination.replace(/\s+/g, ' ').trim().slice(0, 56);
+    }
+    document.body.classList.add('navigation-locked');
+    overlay?.classList.add('is-covering');
+
+    const delay = reduceMotion.matches ? 40 : 680;
+    window.setTimeout(() => {
+      try {
+        sessionStorage.setItem('field-archive-travel', '1');
+      } catch {
+        // Navigation still works when storage is unavailable.
+      }
+      window.location.assign(url);
+    }, delay);
+  });
+</script>
+

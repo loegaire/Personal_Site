@@ -1,0 +1,56 @@
+---
+interface Props {
+  size?: 'small' | 'large';
+}
+
+const { size = 'small' } = Astro.props;
+---
+
+<svg
+  class:list={['sigil', `sigil--${size}`]}
+  viewBox="0 0 120 120"
+  aria-hidden="true"
+>
+  <path class="sigil__burst" d="M12 63 32 50 18 27l30 9L59 8l11 28 31-11-14 27 23 13-25 9 8 30-27-17-20 24-4-31-32 5 20-22Z" />
+  <path class="sigil__eye" d="M24 64c15-22 50-27 72-5-20 26-54 28-72 5Z" />
+  <path class="sigil__slash" d="m42 84 25-53 12 5-25 53z" />
+  <circle class="sigil__core" cx="61" cy="63" r="9" />
+</svg>
+
+<style>
+  .sigil {
+    display: block;
+    flex: none;
+    width: 3rem;
+    height: 3rem;
+    filter: drop-shadow(4px 5px 0 rgb(0 0 0 / 0.28));
+    transform: rotate(-7deg);
+  }
+
+  .sigil--large {
+    width: clamp(11rem, 26vw, 22rem);
+    height: auto;
+    filter: drop-shadow(12px 15px 0 rgb(0 0 0 / 0.42));
+  }
+
+  .sigil__burst {
+    fill: var(--vermilion);
+  }
+
+  .sigil__eye {
+    fill: #f3ead8;
+    stroke: #0d0c10;
+    stroke-width: 5;
+    stroke-linejoin: bevel;
+  }
+
+  .sigil__slash {
+    fill: var(--gold);
+    stroke: #0d0c10;
+    stroke-width: 4;
+  }
+
+  .sigil__core {
+    fill: #0d0c10;
+  }
+</style>

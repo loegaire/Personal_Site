@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Sigil from '../components/Sigil.astro';
+import { getCollection } from 'astro:content';
+import { withBase } from '../utils/content';
+
+const writeups = await getCollection('writeups');
+const research = await getCollection('research');
+const categoryCount = new Set(writeups.map((post) => post.data.category)).size;
+---
+
+<BaseLayout
+  title="About — Field Archive"
+  description="About the archive and its focus on reverse engineering and digital forensics."
+>
+  <header class="about-hero">
+    <div class="about-hero__mark">
+      <Sigil size="large" />
+      <span>REVERSE / FORENSICS</span>
+    </div>
+    <div class="about-hero__copy">
+      <p class="eyebrow">About</p>
+      <h1>Reverse engineering<br /><em>& digital forensics.</em></h1>
+      <p>
+        My name is Thinh. My current interests are Reverse Engineering and Digital Forensics.
+        This site collects my CTF writeups and academic notes.
+      </p>
+      <div class="about-hero__links">
+        <a class="button button--strike" href="https://github.com/loegaire">GitHub ↗</a>
+        <a class="button button--paper" href="https://ctftime.org/team/374531">CTFtime ↗</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="about-ledger section-shell">
+    <div class="about-ledger__intro">
+      <p class="eyebrow">Markdown-first publishing</p>
+      <h2>How the archive works.</h2>
+      <p>
+        The source text comes from the original Markdown documents. The import step adds
+        metadata, copies referenced media, normalizes local paths, and removes obvious
+        service credentials before Astro builds the static site.
+      </p>
+    </div>
+    <dl>
+      <div><dt>01 / Collect</dt><dd>Discover authored notes and writeups under <code>~/ctf</code>.</dd></div>
+      <div><dt>02 / Preserve</dt><dd>Keep the original document body and referenced attachments.</dd></div>
+      <div><dt>03 / Label</dt><dd>Add event, discipline, status, date, and reading-time metadata.</dd></div>
+      <div><dt>04 / Build</dt><dd>Render each Markdown file through Astro content collections.</dd></div>
+    </dl>
+  </section>
+
+  <section class="profile-stats">
+    <div><strong>{writeups.length}</strong><span>CTF records indexed</span></div>
+    <div><strong>{research.length}</strong><span>research documents</span></div>
+    <div><strong>{categoryCount}</strong><span>technical disciplines</span></div>
+  </section>
+
+  <section class="about-cta">
+    <p>CTF writeups archive</p>
+    <h2>Browse the original<br />notes and writeups.</h2>
+    <a class="button button--strike" href={withBase('/archive/')}>Open the archive</a>
+  </section>
+</BaseLayout>

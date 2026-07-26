@@ -1,0 +1,79 @@
+---
+import '@fontsource/bebas-neue';
+import '@fontsource/cormorant-garamond/400.css';
+import '@fontsource/cormorant-garamond/600.css';
+import '@fontsource/cormorant-garamond/700.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/700.css';
+import 'katex/dist/katex.min.css';
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import TravelTransition from '../components/TravelTransition.astro';
+import MusicPlayer from '../components/MusicPlayer.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  article?: boolean;
+}
+
+const {
+  title = 'Field Archive',
+  description = 'A personal collection of CTF writeups, field notes, and academic research.',
+  image,
+  article = false,
+} = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const favicon = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}favicon.svg`;
+---
+
+<!doctype html>
+<html lang="en" data-theme="underworld">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#121014" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href={favicon} type="image/svg+xml" />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" type="application/rss+xml" title="Field Archive" href={new URL('rss.xml', Astro.site)} />
+    <meta property="og:type" content={article ? 'article' : 'website'} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {image && <meta property="og:image" content={new URL(image, Astro.site)} />}
+    <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+    <title>{title}</title>
+    <script is:inline>
+      (() => {
+        const saved = localStorage.getItem('field-archive-theme');
+        if (saved === 'parchment' || saved === 'underworld') document.documentElement.dataset.theme = saved;
+        try {
+          if (sessionStorage.getItem('field-archive-travel')) {
+            sessionStorage.removeItem('field-archive-travel');
+            document.documentElement.classList.add('travel-arrival');
+          }
+        } catch {
+          // The site remains fully navigable when storage is unavailable.
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="texture-layer" aria-hidden="true"></div>
+    <TravelTransition />
+    <MusicPlayer />
+    <Header />
+    <main id="main-content">
+      <slot />
+    </main>
+    <Footer />
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+  </body>
+</html>

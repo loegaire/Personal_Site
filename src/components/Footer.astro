@@ -1,0 +1,30 @@
+---
+import Sigil from './Sigil.astro';
+import { getCollection } from 'astro:content';
+import { withBase } from '../utils/content';
+
+const writeups = await getCollection('writeups');
+const research = await getCollection('research');
+const eventCount = new Set(writeups.map((post) => post.data.event)).size;
+---
+
+<footer class="site-footer">
+  <div class="site-footer__brand">
+    <Sigil />
+    <div>
+      <strong>A personal collection of CTF and cybersecurity writeups.</strong>
+      <p>A growing vault of learning, mistakes, techniques, and the occasional triumph.</p>
+    </div>
+  </div>
+  <div class="site-footer__ledger" aria-label="Archive statistics">
+    <span><b>{writeups.length}</b> CTF records</span>
+    <span><b>{research.length}</b> research notes</span>
+    <span><b>{eventCount}</b> events</span>
+  </div>
+  <div class="site-footer__links">
+    <a href={withBase('/archive/')}>Archive</a>
+    <a href="https://github.com/loegaire" rel="me">GitHub</a>
+    <a href="https://ctftime.org/team/374531" rel="me">CTFtime</a>
+  </div>
+  <p class="site-footer__copy">© {new Date().getFullYear()} Field Archive. Built with Astro from Markdown sources.</p>
+</footer>
