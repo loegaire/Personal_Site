@@ -8,8 +8,8 @@ category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
 tags: ["Reverse Engineering", "Archive", "Writeup"]
-readingTime: 18
-wordCount: 3955
+readingTime: 17
+wordCount: 3544
 featured: true
 sourcePath: "content/writeups/rev-steinsgate.md"
 ---
@@ -522,8 +522,8 @@ audio paths run unmodified. That's what makes the build portable: it is as
 Windows-safe as the retail engine plus a stats-flag change.
 
 The historical 13-site build (md5 `bcb34727…`) is preserved in `run/Game.fix8.exe`
-and its full table in the appendix, as a curiosity: the shim code works and
-was a heroic amount of fun, it just turned out to be unnecessary.
+as a curiosity: the shim code works and was a heroic amount of fun, it just
+turned out to be unnecessary.
 
 ---
 
@@ -688,71 +688,3 @@ ends, not where it should:
 Credits: unpacking algorithm cross-checked against **Steamless** (atom0s,
 CC BY-NC-ND), used as reference only; Steam replacement courtesy of **Goldberg
 Emulator (gbe_fork)**; DXVK x32 for making d3d9 behave under Wine.
-
----
-
-## 14. Open items
-
-All closed:
-
-- [x] Confirm the title *menu* appears / game is playable, done (§11):
-      screenshot of the running prologue + live play on the final build.
-- [x] Root-cause the winepulse hang: it was the 5.1 (aux2…aux5) stream
-      negotiation; with a stereo default sink the game negotiates plain stereo
-      and initializes instantly (§7).
-- [x] `mgs::GL::Common::VertBuffAlloc()` dialog: a symptom of the leak; gone
-      on the final build (§9).
-- [x] Re-test virtual-desktop mode: passed on the final build in a fresh
-      prefix (§12).
-- [x] Golden-path `Launcher.exe`: **won't do, on purpose**. The launcher is
-      brittle under Wine and unnecessary. The engine writes a valid
-      `config.dat` itself (observed on clean exits), and `config.dat` ships in
-      the pack. Use in-game settings if you want to change resolution etc.
-- [x] Sleep-shim portability caveat: moot. The shims are not in the final
-      build at all (§8). The shipped patch has no hardcoded addresses.
-
----
-
-## Appendix: the historical 13-site patch set
-
-Kept for the record: `run/Game.fix8.exe`, md5
-`bcb34727fc7d4748fd304d0f58447d68` = unpacked + 13 sites (15 changed byte
-ranges). Everything below except #6 turned out to be treating leak symptoms:
-
-| # | VA | change |
-|---|---|---|
-| 1 | `0x432f5f` | tick: `call esi` → `call [0x4b71e8]` + jump to cave |
-| 2 | `0x432f72` | cave: `sub eax, [0x164210c]; jmp` tick epilogue |
-| 3 | `0x432fb5` | main loop: `mov esi, [Sleep]` → `mov esi, 0x457fa8` (shim) |
-| 4 | `0x433015` | main loop: `push 1; call esi` → jump to cave |
-| 5 | `0x433033` | cave: `push 1; call [0x4b7084]`; `jmp 0x432fc0` |
-| 6 | `0x44c643` | **the real fix**: skip leaky `call eax`; `[esi+0x1327c] = 1` |
-| 7 | `0x457fa8` | Sleep shim (53 B, below) |
-| 8 | `0x46fadd` | sleep clamp: `add ecx, 0x10` → `and ecx, 0x1f` |
-| 9 | `0x48854e` | `mov ebx, [Sleep]` → shim |
-| 10 | `0x493301` | `mov ebx, [Sleep]` → shim |
-| 11 | `0x494262` | `mov edi, [Sleep]` → shim |
-| 12 | `0x494a5b` | `timeBeginPeriod` import call → `xor eax, eax; add esp, 4` |
-| 13 | `0x4985a4` | bounds-check trace/assert block → clamp (`offset = 0`) + retry |
-
-The **Sleep shim** (case 7) intercepted any engine sleep of ≥ 64 s and returned
-control to the main loop as if the tick had finished, including its
-deterministic-for-this-machine stack addresses (`0x2e2fe00`, `0x2e2fe04`,
-`0x2e2ff04`), the reason it was never going to be the portable answer:
-
-```
-457fa8: cmp dword [esp+4], 0x10000    ; Sleep(ms): ms >= 64 s?
-457fb0: jb  0x457fd7                  ; sane value -> tail-jump into Sleep
-457fb2: mov eax, [esp]                ; (big-path) save the caller's return
-457fb5: mov [0x2e2fe00], eax          ;   ... and the huge ms value
-457fba: mov eax, [esp+4]
-457fbe: mov [0x2e2fe04], eax
-457fc3: mov dword [esp], 0x43300e     ; re-target the return to the main loop
-457fca: mov dword [esp+4], 1          ; arg := 1
-457fd2: mov ebp, 0x2e2ff04            ; restore the main frame pointer
-457fd7: jmp dword [0x4b7084]          ; Sleep(1), returns into the main loop
-```
-
-It worked. It was also, it turns out, a very elaborate answer to “stop the
-stack from being four bytes shorter than the engine expects.” Sometimes that's
-how you get to the right answer: you just have to build the wrong one first.
