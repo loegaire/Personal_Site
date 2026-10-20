@@ -440,31 +440,6 @@ machine, not Orbit, not a missing file, not a GPU stall.
 > `/tmp`, a 7.7 GB tmpfs, and writes began failing mid-run. Use a wrapper that
 > writes the trace to a non-temporary location and keeps only the last window.
 
-### An honest correction
-
-I previously reported the "readiness spin" at VA `0x16A34D6` as the cause and its
-patches as disarming it. **That was wrong.** The patches rewrite the back-edge
-from `je <head>` to `je +0`, so the function still does two polls and exactly one
-`SwitchToThread` before falling through, and LBR shows the `call
-SwitchToThread` executing nine times in a row. The loop simply **moved to the
-caller**, which re-enters `0x16A3460` repeatedly. TaskThread1 still burns ~100 %
-of a core.
-
-What the patches did buy, and are kept for: before them the game never left the
-lab unattended; after them it reaches the Animus descent and, in at least one
-run, the Lucy Stillman cutscene, the furthest this has ever been driven
-automatically.
-
-### Other things tried, and rejected
-
-| experiment | result |
-|---|---|
-| break the DB "busy" spin at `0x154CC59` | game regresses to sitting in the lab |
-| NOP the whole `SwitchToThread` thunk | `sched_yield` rate unchanged: the yields come from wine's wait, not the game |
-| `SwitchToThread` -> `Sleep(1)` | game whites out at startup, dead end |
-| `WINEDEBUG=+debugstr` for the 2388 `OutputDebugStringW` sites | wine discards them with no debugger attached; a file-level IAT redirect cannot work either, the loader overwrites IAT slots |
-| `Assassin2.ini` | exists with graphics and input keys only; not consulted for loading |
-
 ---
 
 ## 8. Where the next session should start
