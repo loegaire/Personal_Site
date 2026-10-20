@@ -8,8 +8,8 @@ category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
 tags: ["Reverse Engineering", "Archive", "Writeup"]
-readingTime: 8
-wordCount: 1628
+readingTime: 6
+wordCount: 1285
 featured: true
 sourcePath: "content/writeups/rev-deadcells-fly-god-mode.md"
 ---
@@ -221,49 +221,3 @@ Verification checklist run at the end:
 - `/proc/<pid>/maps` lists `maxhp.so`
 - live hook disassembly shows `mov r10d, 0x98967f`
 - flight bytes present in live `hlboot.dat`
-
-## 10. Open items / caveats
-
-- **Health retention has not yet been exercised in-game.** To test it, deliberately
-  take some damage and watch HP. The hook installs and its opcode is correct, but
-  gameplay proof is still pending. If damage does land, the next step is a bytecode HP store patch using the same
-  technique as flight; the big advantage is immunity to jitter.
-- At HP `9,999,999`, the HP-bar *UI* may render oddly with a proportion that is too
-  wide; this is cosmetic.
-- The `fd`/uinput helpers `/tmp/drive.py` and `/tmp/uinput_key.py`, plus the
-  screenshot tooling, are session infrastructure, not part of the artifact.
-
-## 11. What to build on top
-
-If another game ships Haxe bytecode and you need a hook, the pattern is:
-search by semantic name, such as `get_…` or the field name, in the *proto registry*,
-resolve to the
-bytecode function, and confine your rewrite to register-typed ops whose byte footprint
-matches the original. Everything else only fights you.
-
-## 12. Files in this bundle
-
-| File | Role |
-|---|---|
-| `unified_hack.sh` | the one-command launcher for flight and health |
-| `hlboot.fly.dat` | pre-patched `hlboot.dat` for the flight-only build |
-| `hlboot.original.dat` | pristine `hlboot.dat` backup for `--reset` |
-| `hlpatch.py` | standalone HashLink v5 parser/patcher that found the flight site |
-| `maxhp.so` | **health build HP=9,999,999**, the build `unified_hack.sh` loads |
-| `godmode_maxhp.cpp` | its source, with a single immediate changed from `godmode.cpp` |
-| `myhack.so` | HP=1000 build, the launcher's fallback if `maxhp.so` is removed |
-| `godmode.cpp` | original source of myhack.so |
-| `godmode_fly.cpp` / `flyhack.so` | dead-end native attempt, kept for the record |
-| `checkpoint/` | copy of everything above + `NOTES.md`, the raw engineering log |
-
-## 13. Reproduction from scratch
-
-1. Copy this bundle into the game directory, for example `game/` at
-   `/home/thinh/game/deadcells/game/`.
-2. `./unified_hack.sh` puts flight bytes in place and preloads health.
-3. Play: **hold JUMP to rise**, take damage and stay alive.
-4. To undo everything, run `./unified_hack.sh --reset`, which restores the pristine
-   `hlboot.dat`, then launch the game as you normally would.
-5. Two failure caches to keep in mind if you rebuild `maxhp.so` going forward:
-   build with `-shared -fPIC -O2`; verify the immediate survived codegen
-   (`41 BA 7F 96 98 00`) before blaming the game.
