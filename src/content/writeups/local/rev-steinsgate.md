@@ -2,14 +2,14 @@
 title: "STEINS;GATE [Build 4434295]: DRM dissection & Wine bring-up"
 description: "This is the story of taking a Steam build of STEINS;GATE, figuring out what DRM was wrapped around the executables, peeling it off by hand, and then getting the game to actually run on Linux/Wine. It is also…"
 published: "2026-10-19"
-updated: "2026-10-19"
+updated: "2026-10-20"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
 tags: ["Reverse Engineering", "Archive", "Writeup"]
 readingTime: 17
-wordCount: 3544
+wordCount: 3563
 featured: true
 sourcePath: "content/writeups/rev-steinsgate.md"
 ---
@@ -33,6 +33,15 @@ time, and the road there is worth telling.
 
 Everything below is in **hypothesis → evidence → conclusion** form, with the
 real commands, real code and real screenshots we produced along the way.
+
+## Demo
+
+<figure class="demo-video">
+  <video controls playsinline preload="metadata" poster="/Personal_Site/media/writeups/rev-steinsgate/steinsgate-demo-poster.jpg">
+    <source src="/Personal_Site/media/writeups/rev-steinsgate/steinsgate-demo.mp4" type="video/mp4">
+  </video>
+  <figcaption>The finished build running under Wine, from the patched launcher to the title screen and the opening movie.</figcaption>
+</figure>
 
 ---
 

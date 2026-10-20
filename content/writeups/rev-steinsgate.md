@@ -18,6 +18,15 @@ time, and the road there is worth telling.
 Everything below is in **hypothesis → evidence → conclusion** form, with the
 real commands, real code and real screenshots we produced along the way.
 
+## Demo
+
+<figure class="demo-video">
+  <video controls playsinline preload="metadata" poster="/Personal_Site/media/writeups/rev-steinsgate/steinsgate-demo-poster.jpg">
+    <source src="/Personal_Site/media/writeups/rev-steinsgate/steinsgate-demo.mp4" type="video/mp4">
+  </video>
+  <figcaption>The finished build running under Wine, from the patched launcher to the title screen and the opening movie.</figcaption>
+</figure>
+
 ---
 
 ## 0. TL;DR
