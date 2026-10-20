@@ -1,6 +1,8 @@
 # Dead Cells: fly hack and god mode
 
-The finished result is the `unified_hack.sh` launcher, built from the analysis below.
+The finished result is a small launcher script built from the analysis below.
+
+The script is called `unified_hack.sh` and is the single entry point for the patched build.
 
 End state: one launcher that patches `hlboot.dat` so `get_airJumps()` returns 0,
 which means unlimited air jumps, and preloads a library that intercepts the player's
@@ -22,9 +24,9 @@ confirm.
 
 ## 0. The game runtime: the thing that dictated everything
 
-Dead Cells on Linux is a Haxe program running on **HashLink**: game logic ships as
-bytecode in `hlboot.dat`, and at runtime `libhl.so` JIT-compiles it into a ~57 MB
-anonymous `rwxp` mapping. Every consequence below follows from that:
+Dead Cells on Linux is a Haxe program running on **HashLink**. The game logic ships
+as bytecode in a file called `hlboot.dat`, and at runtime the HashLink library,
+`libhl.so`, JIT-compiles that bytecode into a ~57 MB anonymous `rwxp` mapping. Every consequence below follows from that:
 
 - There are two distinct patchable surfaces: **the bytecode file**, which lives on
   disk but is consumed at boot, and **the JIT arena**, a memory copy recomputed from
@@ -144,21 +146,21 @@ this game: headless input automation can look like it's playing while the sim is
 
 After flight was confirmed:
 
-- Combined with the pre-existing `godmode.cpp` / `myhack.so` build: HP=1000 style, an
-  HP-store detour whose identity check is `vtable & 0xFFF == 0x848` to gate player-only.
+- Combined with a pre-existing preload library for 1000 HP, `myhack.so`: an HP-store
+  detour whose identity check is `vtable & 0xFFF == 0x848` to gate player-only.
 - I incorrectly attributed that build as the player's original and briefly floated a
   register mismatch in the hook; corrected after decoding the ModRM properly: the
   signature really is `mov [r9+0x18C], r10d` and the hook is consistent.
 - The player remembered an earlier variant **patching subtract into add** instead of
-  replacing the value with 1000. Exhaustive search of `godmode.cpp` and its `.so`s, all
-  `nvim` undo state, Trash, all git repos, shell history, and all files under home found
-  no sub→add artifact. Decision: accept the store-detour family and raise the HP bloom.
+  replacing the value with 1000. An exhaustive search of the earlier source and every
+  available backup found no sub→add artifact. Decision: accept the store-detour family and raise the HP bloom.
 
 ---
 
-## 8. Finished combined build: maxhp.so with 9,999,999 HP
+## 8. Finished combined build: the 9,999,999 HP library
 
-Derived exactly by changing one immediate in `godmode_maxhp.cpp`:
+The finished library is `maxhp.so`. It was derived exactly by changing one immediate in
+the earlier 1000 HP source:
 
 ```
 mov $9999999, %r10d      ; = mov r10d, 0x0098967F
@@ -185,20 +187,23 @@ mov dword [r9+0x18C], r10d     ; <- ours is the patched store
 
 Enemies pass the vtable check and fall through to normal damage.
 
-## 9. The glue: `unified_hack.sh`
+## 9. The glue: the launcher
 
-Runtime does three things in order:
+`unified_hack.sh` does three things in order:
 
 1. **Restore pristine bytecode**, then apply the 8-byte flight patch to `hlboot.dat`
-   at offset `0xDE533F`. This is idempotent: it boots if the bytes are already patched
-   and refuses if the pristine backup is missing.
+   at offset `0xDE533F`. The launcher keeps a backup of the original file. This is
+   idempotent: it boots if the bytes are already patched and refuses if the backup is
+   missing.
 2. Ensure the health library exists; **default to `maxhp.so` at HP 9,999,999**, fall
-   back to `myhack.so` at HP=1000 if missing; echo which one actually loaded so there's
-   no ambiguity.
-3. `LD_LIBRARY_PATH=. LD_PRELOAD="$HACK_SO" ./deadcells` and launch normally.
+   back to `myhack.so` at HP=1000 if missing. The launcher reports which one loaded so
+   there is no ambiguity.
+3. Launch the game with `LD_LIBRARY_PATH=.` and `LD_PRELOAD` set to the chosen
+   library; the latter injects it into the process. For example, run the game binary
+   `./deadcells`.
 
 Verification checklist run at the end:
-- launcher echoes `[+] FLIGHT: bytecode patch applied (8 bytes @ 0xDE533F).` or says the patch is already in place
+- the launcher prints `[+] FLIGHT: bytecode patch applied (8 bytes @ 0xDE533F).` or says the patch is already in place
 - `[MATCH] Hooking: 0x…` + `[*] GOD MODE INSTALLED.`
 - no `JIT ERROR` lines
 - `Game version : 35, date : 2023-10-01, git hash : 62334b035788ed32c7c43cbd3ae6d2f3c79f52d3` reached
