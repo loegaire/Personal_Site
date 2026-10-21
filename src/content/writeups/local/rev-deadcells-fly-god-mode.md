@@ -1,6 +1,6 @@
 ---
 title: "Dead Cells: fly hack and god mode"
-description: "The finished result is a small launcher script built from the analysis below."
+description: "I ended up with a small launcher script built from the analysis below."
 published: "2026-10-20"
 updated: "2026-10-21"
 event: "Archive"
@@ -9,22 +9,22 @@ kind: "writeup"
 status: "solved"
 tags: ["Reverse Engineering", "Archive", "Writeup"]
 readingTime: 7
-wordCount: 1334
+wordCount: 1338
 featured: true
 sourcePath: "content/writeups/rev-deadcells-fly-god-mode.md"
 ---
 
 # Dead Cells: fly hack and god mode
 
-The finished result is a small launcher script built from the analysis below.
+I ended up with a small launcher script built from the analysis below.
 
 The script is called `unified_hack.sh` and is the single entry point for the patched build.
 
-End state: one launcher that patches `hlboot.dat` so `get_airJumps()` returns 0,
-which means unlimited air jumps, and preloads a library that intercepts the player's
-HP *store*, refilling it with 9,999,999 instead of the post-damage value.
-Both effects were confirmed in-game by the player: unlimited air jumps, and a health
-bar that holds at 9,999,999 when damage lands.
+The end state is one launcher that patches `hlboot.dat` so `get_airJumps()` returns
+0, which means unlimited air jumps, and preloads a library that intercepts the
+player's HP *store*, refilling it with 9,999,999 instead of the post-damage value.
+I confirmed both effects in-game: unlimited air jumps, and a health bar that holds
+at 9,999,999 when damage lands.
 
 ## Demo
 
@@ -153,22 +153,24 @@ Any future v5 patch in this file needs both.
 Objective verification was degraded by the environment: the game **auto-pauses on focus
 loss**; under niri/XWayland with synthetic uinput input the pause never lifts, the run
 timer stuck at `0s` behind a `[Pause]` tag, and the player sprite did not move between
-screenshots. The bytecode was proven correct at boot; flight was then **confirmed
-manually by the player holding JUMP** in a real window. Lesson for future sessions on
-this game: headless input automation can look like it's playing while the sim is frozen.
+screenshots. The bytecode was proven correct at boot; I then **confirmed it manually
+by holding JUMP** in a real window. Lesson for future sessions on this game: headless
+input automation can look like it's playing while the sim is frozen.
 
 ## 7. The health half: the odyssey
 
-After flight was confirmed:
+After I confirmed flight:
 
-- Combined with a pre-existing preload library for 1000 HP, `myhack.so`: an HP-store
-  detour whose identity check is `vtable & 0xFFF == 0x848` to gate player-only.
-- I incorrectly attributed that build as the player's original and briefly floated a
-  register mismatch in the hook; corrected after decoding the ModRM properly: the
-  signature really is `mov [r9+0x18C], r10d` and the hook is consistent.
-- The player remembered an earlier variant **patching subtract into add** instead of
-  replacing the value with 1000. An exhaustive search of the earlier source and every
-  available backup found no sub→add artifact. Decision: accept the store-detour family and raise the HP bloom.
+- I combined it with a pre-existing preload library for 1000 HP, `myhack.so`, an
+  HP-store detour whose identity check is `vtable & 0xFFF == 0x848` to gate
+  player-only.
+- I incorrectly treated that build as the game's original player code and briefly
+  floated a register mismatch in the hook; I corrected it after decoding the ModRM
+  properly: the signature really is `mov [r9+0x18C], r10d` and the hook is consistent.
+- I remembered an earlier variant **patching subtract into add** instead of replacing
+  the value with 1000. An exhaustive search of the earlier source and every available
+  backup found no sub→add artifact. I decided to accept the store-detour family and
+  raise the HP bloom.
 
 ---
 
