@@ -7,6 +7,32 @@ import { withBase } from '../utils/content';
 const writeups = await getCollection('writeups');
 const research = await getCollection('research');
 const categoryCount = new Set(writeups.map((post) => post.data.category)).size;
+
+const achievements = [
+  ['01', '2026', 'FPT Future Tech Talents 2026', 'Next-Gen Talents award', 'Award'],
+  ['02', '2024', 'Google Cybersecurity Professional Certificate', 'Professional certificate', 'Cert'],
+  ['03', '2024', 'Google AI Essentials', 'AI fundamentals certificate', 'Cert'],
+  ['04', '2024', 'Google Project Management Professional Certificate', 'Professional certificate', 'Cert'],
+  ['05', '2025', 'Google Prompting Essentials', 'Prompting certificate', 'Cert'],
+  ['06', '2024', 'IELTS Academic 8.0', 'CEFR C1, four skills', 'Test'],
+  ['07', '2026', 'JLPT N3', 'Passed, 111/180', 'Test'],
+  ['08', '2024', 'Provincial English Olympiad', 'First prize, grade 12', 'Award'],
+  ['09', '2023', 'Provincial English Olympiad', 'Encouragement prize, grade 11', 'Award'],
+  ['10', '2023', 'National English Olympiad', 'Provincial training team', 'Select'],
+  ['11', '2026', 'OpenAI Build Week', 'First place, AI pentesting agent', 'Award'],
+  ['12', '2026', 'Team 0xHUST — BKSEC', '19 top-20 finishes', 'Team'],
+  ['13', '2026', 'Team ite25', 'Top 10% Southeast Asia', 'Team'],
+  ['14', '2026', 'NDIAS Automotive/IoT CTF', '8th of 419', 'CTF'],
+  ['15', '2026', '0xV01D CTF', '14th of 688', 'CTF'],
+  ['16', '2026', 'No Hack No CTF', '17th of 844', 'CTF'],
+  ['17', '2026', 'Grey Cat The Flag Qualifiers', '54th of 418', 'CTF'],
+  ['18', '2026', 'GPN CTF', '56th of 613', 'CTF'],
+  ['19', '2026', 'UIUCTF', '109th of 548', 'CTF'],
+  ['20', '2026', 'Crackmes.one RE CTF', 'Hall of Fame #91', 'RE'],
+  ['21', '2026', 'Athena CTF 2026', 'Rank #6', 'CTF'],
+  ['22', '2026', 'Flare-On 13 — Google Cloud', 'Rank 70, 9/9 solves', 'RE'],
+  ['23', '2026', 'HUST Student Research Conference', 'Co-author, shellcode loaders', 'Research'],
+];
 ---
 
 <BaseLayout
@@ -54,6 +80,36 @@ const categoryCount = new Set(writeups.map((post) => post.data.category)).size;
     <div><strong>{writeups.length}</strong><span>CTF records indexed</span></div>
     <div><strong>{research.length}</strong><span>research documents</span></div>
     <div><strong>{categoryCount}</strong><span>technical disciplines</span></div>
+  </section>
+
+  <section class="section-shell" id="awards">
+    <div class="section-heading section-heading--split">
+      <div>
+        <p class="eyebrow">Awards &amp; certificates</p>
+        <h2>Proof ledger.</h2>
+      </div>
+      <p>
+        Selected awards, certificates, and competition records. Each entry opens the
+        original certificate, scoreboard, test report, or archived record.
+      </p>
+    </div>
+    <div class="latest-list">
+      {achievements.map(([num, year, title, description, kind]) => (
+        <a
+          class="latest-row"
+          href={withBase(`/aboutme/achievements/${num}.pdf`)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span class="latest-row__index">{num}</span>
+          <span class="latest-row__status">{year}</span>
+          <strong>{title}</strong>
+          <span>{description}</span>
+          <span>{kind}</span>
+          <svg viewBox="0 0 52 32" aria-hidden="true"><path d="M2 16h43M32 3l13 13-13 13" /></svg>
+        </a>
+      ))}
+    </div>
   </section>
 
   <section class="about-cta">
