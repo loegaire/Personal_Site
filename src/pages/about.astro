@@ -32,7 +32,7 @@ const achievements = [
   ['21', '2026', 'Athena CTF 2026', 'Rank #6', 'CTF'],
   ['22', '2026', 'Flare-On 13 — Google Cloud', 'Rank 70, 9/9 solves', 'RE'],
   ['23', '2026', 'HUST Student Research Conference', 'Co-author, shellcode loaders', 'Research'],
-];
+].sort((a, b) => Number(b[1]) - Number(a[1]));
 ---
 
 <BaseLayout
@@ -86,22 +86,19 @@ const achievements = [
     <div class="section-heading section-heading--split">
       <div>
         <p class="eyebrow">Awards &amp; certificates</p>
-        <h2>Proof ledger.</h2>
+        <h2>My name on ledgers.</h2>
       </div>
-      <p>
-        Selected awards, certificates, and competition records. Each entry opens the
-        original certificate, scoreboard, test report, or archived record.
-      </p>
+      <p>Records, papers.</p>
     </div>
     <div class="latest-list">
-      {achievements.map(([num, year, title, description, kind]) => (
+      {achievements.map(([num, year, title, description, kind], index) => (
         <a
           class="latest-row"
           href={withBase(`/aboutme/achievements/${num}.pdf`)}
           target="_blank"
           rel="noreferrer"
         >
-          <span class="latest-row__index">{num}</span>
+          <span class="latest-row__index">{String(index + 1).padStart(2, '0')}</span>
           <span class="latest-row__status">{year}</span>
           <strong>{title}</strong>
           <span>{description}</span>
