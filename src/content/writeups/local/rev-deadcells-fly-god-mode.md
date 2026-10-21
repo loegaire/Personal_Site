@@ -2,14 +2,14 @@
 title: "Dead Cells: fly hack and god mode"
 description: "The finished result is a small launcher script built from the analysis below."
 published: "2026-10-20"
-updated: "2026-10-20"
+updated: "2026-10-21"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
 tags: ["Reverse Engineering", "Archive", "Writeup"]
 readingTime: 7
-wordCount: 1341
+wordCount: 1334
 featured: true
 sourcePath: "content/writeups/rev-deadcells-fly-god-mode.md"
 ---
@@ -23,9 +23,8 @@ The script is called `unified_hack.sh` and is the single entry point for the pat
 End state: one launcher that patches `hlboot.dat` so `get_airJumps()` returns 0,
 which means unlimited air jumps, and preloads a library that intercepts the player's
 HP *store*, refilling it with 9,999,999 instead of the post-damage value.
-Flight was confirmed working in-game by the player. The health hook is verified at the
-instruction level inside a live process; in-game damage retention still needs a manual
-confirm.
+Both effects were confirmed in-game by the player: unlimited air jumps, and a health
+bar that holds at 9,999,999 when damage lands.
 
 ## Demo
 
