@@ -683,8 +683,10 @@ function main() {
     new Set(),
     manifest,
   );
-  rmSync(outputImportedResearch, { recursive: true, force: true });
-  importSkillDocuments(skillSourceRoots, seenHashes, new Set(), manifest);
+  if (skillSourceRoots.some((root) => existsSync(root))) {
+    rmSync(outputImportedResearch, { recursive: true, force: true });
+    importSkillDocuments(skillSourceRoots, seenHashes, new Set(), manifest);
+  }
 
   const pdfPath = join(legacyWriteups, '2026 Hacktheon Sejong.pdf');
   if (existsSync(pdfPath)) {
