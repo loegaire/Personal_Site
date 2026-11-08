@@ -22,6 +22,11 @@ const outputImportedWriteups = join(outputWriteupsRoot, 'imported');
 const outputLocalWriteups = join(outputWriteupsRoot, 'local');
 const outputResearchRoot = join(repoRoot, 'src', 'content', 'research');
 const outputLocalResearch = join(outputResearchRoot, 'local');
+const outputImportedResearch = join(outputResearchRoot, 'imported');
+const skillSourceRoots = [
+  join(ctfRoot, 'writeups', 'ctf_skill_research', 'staging_skills'),
+  join(ctfRoot, 'writeups', 'ctf_skill_research', 'backups'),
+];
 const publicMedia = join(repoRoot, 'public', 'media');
 const dataDir = join(repoRoot, 'src', 'data');
 const siteBase = (process.env.SITE_BASE || '/Personal_Site').replace(/\/$/, '');
@@ -339,6 +344,101 @@ function inferTags(path, markdown, category, event, kind) {
   return [...new Set([category, event, kindLabel, ...technique])].slice(0, 8);
 }
 
+const skillCategoryPatterns = [
+  ['Reverse Engineering', /(^|[-_])(ctf-)?reverse/],
+  ['Binary Exploitation', /(^|[-_])(ctf-)?pwn/],
+  ['Cryptography', /(^|[-_])(ctf-)?crypto/],
+  ['Web Security', /(^|[-_])(ctf-)?web/],
+  ['Forensics', /(^|[-_])(ctf-)?forensic/],
+  ['Malware Analysis', /(^|[-_])(ctf-)?malware/],
+  ['OSINT', /(^|[-_])(ctf-)?osint/],
+  ['Mobile', /(^|[-_])(ctf-)?(mobile|android)/],
+];
+
+function parseSkillFrontmatter(raw) {
+  const meta = {};
+  if (!raw.startsWith('---\n')) return meta;
+  const end = raw.indexOf('\n---\n', 4);
+  if (end === -1) return meta;
+  for (const line of raw.slice(4, end).split('\n')) {
+    const match = line.match(/^([A-Za-z][\w-]*):\s*(.+)$/);
+    if (match) meta[match[1].toLowerCase()] = match[2].trim();
+  }
+  return meta;
+}
+
+function importSkillDocuments(sourceRoots, seenHashes, usedSlugs, manifest) {
+  for (const sourceRoot of sourceRoots) {
+    if (!existsSync(sourceRoot)) continue;
+    const files = walk(sourceRoot)
+      .filter((path) => extname(path).toLowerCase() === '.md')
+      .sort();
+    for (const sourcePath of files) {
+      const stats = statSync(sourcePath);
+      if (stats.size < 64 || stats.size > 1_500_000) continue;
+      const raw = readFileSync(sourcePath, 'utf8').replace(/\r\n/g, '\n');
+      const meta = parseSkillFrontmatter(raw);
+      let body = splitFrontmatter(raw);
+      if (!body.trim()) continue;
+      const hash = createHash('sha256').update(body.trim()).digest('hex');
+      if (seenHashes.has(hash)) continue;
+      seenHashes.add(hash);
+
+      const relParts = relative(sourceRoot, sourcePath).split(sep);
+      if (/^broad-ctf-skills/i.test(relParts[0] || '')) relParts.shift();
+      const stem = basename(sourcePath, extname(sourcePath));
+      const genericName = /^(skill|readme|security)$/i.test(stem);
+      const seedParts = genericName ? relParts.slice(0, -1) : relParts;
+      let slug = `skill-${slugify(seedParts.join('/').replace(/\.md$/i, '')) || 'skill'}`;
+      if (usedSlugs.has(slug)) slug = `${slug}-${hash.slice(0, 7)}`;
+      usedSlugs.add(slug);
+
+      const labelSource = meta.name || (genericName ? seedParts.at(-1) : stem);
+      const title = titleCase(String(labelSource).replace(/[-_]+/g, ' '));
+      const categorySeed = `${seedParts.join(' ')} ${stem}`;
+      const category = skillCategoryPatterns.find(([, matcher]) =>
+        matcher.test(categorySeed.split(/[\\/]/)[0]),
+      )?.[0] || 'Miscellaneous';
+
+      body = rewriteAssets(body, sourcePath, 'research', slug);
+      body = sanitiseSecrets(body);
+      body = normaliseCodeFences(body);
+
+      const relForGit = relative(ctfRoot, sourcePath).split(sep).join('/');
+      const gitDates = gitDateMap?.get(relForGit);
+      const published = gitDates?.first ? new Date(gitDates.first) : stats.birthtimeMs > 0 ? stats.birthtime : stats.mtime;
+      const updated = gitDates?.last ? new Date(gitDates.last) : stats.mtime;
+      const plain = stripMarkdown(body);
+      const wordCount = plain ? plain.split(/\s+/).length : 0;
+      const technique = tagMatchers
+        .filter(([, matcher]) => matcher.test(`${sourcePath}\n${body.slice(0, 20000)}`))
+        .map(([tag]) => tag)
+        .slice(0, 4);
+      let description = meta.description || inferDescription(body, title, 'reference');
+      if (description.length > 210) description = `${description.slice(0, 207).trim()}…`;
+      const metadata = {
+        title,
+        description,
+        published: published.toISOString().slice(0, 10),
+        updated: updated.toISOString().slice(0, 10),
+        event: 'Agentic Skills',
+        category,
+        kind: 'skill',
+        status: 'reference',
+        tags: [...new Set(['agentic_skill', category, 'Agentic Skills', ...technique])].slice(0, 8),
+        readingTime: Math.max(1, Math.ceil(wordCount / 220)),
+        wordCount,
+        featured: false,
+        sourcePath: `~/ctf/${relForGit}`,
+      };
+
+      mkdirSync(outputImportedResearch, { recursive: true });
+      writeFileSync(join(outputImportedResearch, `${slug}.md`), formatDocument(metadata, body));
+      manifest.push({ collection: 'research', slug, output: `research/${slug}.md`, ...metadata });
+    }
+  }
+}
+
 function assetUrl(group, slug, filename) {
   return `${siteBase}/media/${group}/${slug}/${encodeURIComponent(filename).replace(/%2F/gi, '/')}`;
 }
@@ -520,6 +620,7 @@ function main() {
     outputLocalWriteups,
     outputResearchRoot,
     outputLocalResearch,
+    outputImportedResearch,
     publicMedia,
     dataDir,
   ]) {
@@ -582,6 +683,8 @@ function main() {
     new Set(),
     manifest,
   );
+  rmSync(outputImportedResearch, { recursive: true, force: true });
+  importSkillDocuments(skillSourceRoots, seenHashes, new Set(), manifest);
 
   const pdfPath = join(legacyWriteups, '2026 Hacktheon Sejong.pdf');
   if (existsSync(pdfPath)) {
@@ -611,6 +714,7 @@ function main() {
 
   const stats = {
     generatedAt: process.env.IMPORT_GENERATED_AT ? new Date(process.env.IMPORT_GENERATED_AT).toISOString() : new Date().toISOString(),
+    agenticSkills: manifest.filter((entry) => entry.kind === 'skill').length,
     scannedCtfDocuments: ctfFiles.length,
     importedWriteups: manifest.filter((entry) => entry.collection === 'writeups').length,
     importedResearch: manifest.filter((entry) => entry.collection === 'research').length,

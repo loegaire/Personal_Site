@@ -35,6 +35,7 @@ export function labelForKind(kind: AnyPost['data']['kind']) {
     'field-note': 'Field notes',
     article: 'Deep dive',
     research: 'Research',
+    skill: 'Agent Skill',
   }[kind];
 }
 

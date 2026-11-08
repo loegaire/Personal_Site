@@ -27,7 +27,7 @@ const postSchema = z.object({
   updated: z.coerce.date(),
   event: z.string(),
   category: z.string(),
-  kind: z.enum(['writeup', 'field-note', 'article', 'research']),
+  kind: z.enum(['writeup', 'field-note', 'article', 'research', 'skill']),
   status: z.enum(['solved', 'partial', 'reference']),
   tags: z.array(z.string()).default([]),
   readingTime: z.number().int().positive(),
