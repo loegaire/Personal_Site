@@ -1,8 +1,9 @@
 {
-  "generatedAt": "2026-11-08T18:02:37.000Z",
+  "generatedAt": "2026-11-08T18:22:19.000Z",
+  "agenticSkills": 109,
   "scannedCtfDocuments": 59,
   "importedWriteups": 72,
-  "importedResearch": 12,
+  "importedResearch": 121,
   "copiedAssets": 26,
   "redactions": {
     "instanceTokens": 0,
@@ -11,16 +12,20 @@
   },
   "byCategory": {
     "AI": 1,
-    "Binary Exploitation": 9,
-    "Cryptography": 8,
-    "Forensics": 7,
+    "Binary Exploitation": 27,
+    "Cryptography": 24,
+    "Forensics": 22,
     "Hardware / RF": 4,
-    "Miscellaneous": 17,
+    "Malware Analysis": 4,
+    "Miscellaneous": 32,
+    "Mobile": 1,
+    "OSINT": 4,
     "Research": 12,
-    "Reverse Engineering": 24,
-    "Web Security": 2
+    "Reverse Engineering": 38,
+    "Web Security": 24
   },
   "byEvent": {
+    "Agentic Skills": 109,
     "Archive": 12,
     "Article": 2,
     "BKSEC TTV": 7,
