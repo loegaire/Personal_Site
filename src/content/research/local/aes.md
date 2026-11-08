@@ -1,13 +1,13 @@
 ---
 title: "A Comprehensive Summary of the Advanced Encryption Standard (AES)"
 description: "1.0 Introduction to the Advanced Encryption Standard (AES)"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"
 status: "reference"
-tags: ["Research", "Writeup"]
+tags: ["Research", "Writeup", "aes"]
 readingTime: 10
 wordCount: 2008
 featured: false

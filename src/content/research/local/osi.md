@@ -1,8 +1,8 @@
 ---
 title: "Cybersecurity**: Keeping data *intergral* *avaiable*, *authentic*, *accountable*, *confidential*"
 description: "Cybersecurity: Keeping data intergral avaiable, authentic, accountable, confidential OSI: Security attacks: Passive: listening for stuff, not altering anything Active: breaking stuff"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"

@@ -1,13 +1,13 @@
 ---
 title: "The RSA Algorithm"
 description: "An example of prime cyclic group, starting with $5$, we get: $$5^1 = 5\\ (mod\\ 7)$$ $$5^2 = 25\\ (mod\\ 7)= 4$$ $$5^3 = 125\\ (mod\\ 7)=6$$ $$5^4 = 625\\ (mod\\ 7) = 2$$ $$5^5 = 3125\\ (mod\\ 7) = 3$$ $$5^6 = 15625\\…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"
 status: "reference"
-tags: ["Research", "Writeup"]
+tags: ["Research", "Writeup", "rsa"]
 readingTime: 5
 wordCount: 956
 featured: false

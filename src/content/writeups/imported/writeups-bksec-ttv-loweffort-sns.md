@@ -1,13 +1,13 @@
 ---
 title: "(BKSEC TTV) Loweffort Sns — Writeup"
 description: "Server được build bằng go. thực hiện mở instance docker và tương tác. di chuyển trong dir, tìm được vài thông tin: cat low-effort-sns-2/docs/swagger.json trường này có thể exploit được:"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "BKSEC TTV"
 category: "Miscellaneous"
 kind: "writeup"
 status: "solved"
-tags: ["Miscellaneous", "BKSEC TTV", "Writeup"]
+tags: ["Miscellaneous", "BKSEC TTV", "Writeup", "docker"]
 readingTime: 1
 wordCount: 30
 featured: false

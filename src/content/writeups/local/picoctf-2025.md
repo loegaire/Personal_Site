@@ -1,8 +1,8 @@
 ---
 title: "picoCTF 2025 writeup"
 description: "https://play.picoctf.org/events/74/challenges/466?page=2"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"

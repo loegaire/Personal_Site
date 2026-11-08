@@ -1,13 +1,13 @@
 ---
 title: "Bksec Ttv 2025 — Writeup"
 description: "sử dụng jadx decompile: jadx -d outputapp app.apk sau một hồi dò xét các file, biết được điểm đặc biệt nằm ở file libnative-lib.so cd /outputapp/resources/lib/arm64v8a/ decompile bằng IDA, dịch sang pseudoco…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
-tags: ["Reverse Engineering", "Archive", "Writeup"]
+tags: ["Reverse Engineering", "Archive", "Writeup", "android"]
 readingTime: 1
 wordCount: 69
 featured: false

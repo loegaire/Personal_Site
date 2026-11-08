@@ -1,8 +1,8 @@
 ---
 title: "OS Notes — Field Notes"
 description: "# ch4: - bộ nhớ - chương trình lưu ở đâu, lưu thế nào, các loại bộ nhớ (6 lớp từ nhanh đến chậm) - bộ nhớ khác nhau ở kích thước và tốc độ truy cập - các bước compile chương trình - nạp chương trình ở bất cứ…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"

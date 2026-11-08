@@ -1,8 +1,8 @@
 ---
 title: "code:"
 description: "anotherrandom writeup ta có 2 file: chal.py và leak.txt chal.py khá ngắn: from Crypto.Util.number import longtobytes import random from hashlib import sha256"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "BKSEC TTV"
 category: "Miscellaneous"
 kind: "writeup"

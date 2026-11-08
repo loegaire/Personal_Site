@@ -1,8 +1,8 @@
 ---
 title: "Public key cryptography"
 description: "$\\rightarrow$ Only B can decrypt the messages intended for him $\\rightarrow$ Secure communication If we instead use user A's private key to encrypt a plaintext, other users can only use A's public key to dec…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"

@@ -1,8 +1,8 @@
 ---
 title: "The Secure Hash Algorithm (SHA) — Writeup"
 description: "Algorithm Message Size Block Size Word Size Message Digest Size SHA-1 2 64 512 32 160 SHA-224 2 64 512 32 224 SHA-256 2 64 512 32 256 SHA-384 2 128 1024 64 384 SHA-512 2 128 1024 64 512 SHA-512/224 2 128 102…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"

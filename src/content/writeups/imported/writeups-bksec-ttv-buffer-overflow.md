@@ -1,13 +1,13 @@
 ---
 title: "(BKSEC TTV) Buffer Overflow — Writeup"
 description: "Ta có 2 file: bof binary và lib.so.6 thực hiện disassemble và tạo pseudocode, tìm thấy hàm main: int64 fastcall main(int64 a1, char a2, char a3) { char s[32]; // [rsp+0h] [rbp-20h] BYREF"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "BKSEC TTV"
 category: "Binary Exploitation"
 kind: "writeup"
 status: "solved"
-tags: ["Binary Exploitation", "BKSEC TTV", "Writeup"]
+tags: ["Binary Exploitation", "BKSEC TTV", "Writeup", "pwntools", "buffer-overflow", "format-string"]
 readingTime: 1
 wordCount: 69
 featured: false

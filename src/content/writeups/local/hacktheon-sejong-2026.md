@@ -1,8 +1,8 @@
 ---
 title: "Hacktheon Sejong 2026"
 description: "Competition notes and writeup preserved as a downloadable PDF."
-published: "2026-04-25"
-updated: "2026-04-25"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Hacktheon Sejong 2026"
 category: "Miscellaneous"
 kind: "writeup"

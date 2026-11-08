@@ -1,13 +1,13 @@
 ---
 title: "Ostrich Algorithm"
 description: "Sử dụng IDA pro mở file thì ở hàm start mình nhìn thấy được đoạn mã giả như sau:"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "UTCTF"
 category: "Forensics"
 kind: "writeup"
 status: "solved"
-tags: ["Forensics", "UTCTF", "Writeup"]
+tags: ["Forensics", "UTCTF", "Writeup", "ida"]
 readingTime: 3
 wordCount: 649
 featured: false

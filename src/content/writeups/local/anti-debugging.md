@@ -1,8 +1,8 @@
 ---
 title: "anti debugging - a guide:"
 description: "anti-debugging techniques are ways for a program to detect if it runs under the control of a debugger."
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"

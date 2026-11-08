@@ -1,8 +1,8 @@
 ---
 title: "cave expedition - event-log - evtx - powershell - encryption"
 description: "Cave Expedition is a medium forensics challenge that involves analyzing obfuscated PowerShell code, understanding its logic, and developing a decryption process to obtain the final flag"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "HTB Cyber Apocalyse"
 category: "Reverse Engineering"
 kind: "writeup"

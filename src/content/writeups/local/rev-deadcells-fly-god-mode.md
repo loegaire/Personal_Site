@@ -1,8 +1,8 @@
 ---
 title: "Dead Cells: fly hack and god mode"
 description: "I ended up with a small launcher script built from the analysis below."
-published: "2026-10-20"
-updated: "2026-10-21"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"

@@ -1,8 +1,8 @@
 ---
 title: "anti debugging - a guide:"
 description: "There are a lot of techniques for anti-debugging, (the mind games evolve over time) Basic API Anti-Debugging - IsDebuggerPresent() - CheckRemoteDebuggerPresent() - OutputDebugString() - FindWindow() very bas…"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "Article"
 category: "Reverse Engineering"
 kind: "article"

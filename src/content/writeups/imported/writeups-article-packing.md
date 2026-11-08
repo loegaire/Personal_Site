@@ -1,8 +1,8 @@
 ---
 title: "Packing/Unpacking"
 description: "Unpacking is the action of removing the protections layers used by malware in order to reach its core payload. When a malware is packed, everything looks scrambles and messy, and you can't really see (from a…"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "Article"
 category: "Miscellaneous"
 kind: "article"

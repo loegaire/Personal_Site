@@ -1,8 +1,8 @@
 ---
 title: "Cryptographic Hash Functions"
 description: "Hash function:$$f(data) = hash$$ where $hash$ is constant size, and should look random. A Cryptographic Hash function is a function that is hard to find collisions and to trace back the data that gave the kn…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"
@@ -10,7 +10,7 @@ status: "solved"
 tags: ["Research", "Writeup"]
 readingTime: 4
 wordCount: 797
-featured: true
+featured: false
 sourcePath: "content/research/Cryptographic Hash Functions.md"
 ---
 

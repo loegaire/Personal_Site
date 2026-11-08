@@ -1,13 +1,13 @@
 ---
 title: "Solidity — Writeup"
 description: "In Python, if you create a list zombies = [], it lives in RAM. If the server restarts, your zombies are dead (again). You need a database like SQL to save them."
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"
 status: "reference"
-tags: ["Research", "Writeup"]
+tags: ["Research", "Writeup", "docker", "oauth"]
 readingTime: 12
 wordCount: 2428
 featured: false

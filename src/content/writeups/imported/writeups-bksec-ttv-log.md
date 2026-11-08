@@ -1,13 +1,13 @@
 ---
 title: "(BKSEC TTV) Log — Writeup"
 description: "đề bài cho ta 2 file: SQLLog.log và access.log tiến hành trả lời từng câu hỏi. công cụ sử dụng là pwntools để trả lời. from pwn import"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "BKSEC TTV"
 category: "Binary Exploitation"
 kind: "writeup"
 status: "solved"
-tags: ["Binary Exploitation", "BKSEC TTV", "Writeup"]
+tags: ["Binary Exploitation", "BKSEC TTV", "Writeup", "pwntools"]
 readingTime: 1
 wordCount: 143
 featured: false

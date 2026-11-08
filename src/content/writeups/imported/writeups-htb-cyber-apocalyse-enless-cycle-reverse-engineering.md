@@ -1,13 +1,13 @@
 ---
 title: "Endlesscycle - reverse engineering"
 description: "v6 = (unsigned int ()(void))mmap(0LL, 0x9EuLL, 7, 33, -1, 0LL); srand(seed); for ( i = 0LL; i <= 0x9D; ++i ) { for ( j = 0LL; j < dword4040[i]; ++j ) rand(); ((BYTE )v6 + i) = rand(); } if ( v6() == 1 ) puts…"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "HTB Cyber Apocalyse"
 category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
-tags: ["Reverse Engineering", "HTB Cyber Apocalyse", "Writeup"]
+tags: ["Reverse Engineering", "HTB Cyber Apocalyse", "Writeup", "ida"]
 readingTime: 1
 wordCount: 181
 featured: false

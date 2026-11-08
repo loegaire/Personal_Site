@@ -1,8 +1,8 @@
 ---
 title: "Symmetric Cipher Model"
 description: "Cryptanalysis and brute-force no algorithm is unconditionally secure(meaning cant attack even if all ciphertexts are avaiable) except one-time pad computationally secure meaning it takes too much effort to w…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"

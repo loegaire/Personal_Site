@@ -1,8 +1,8 @@
 ---
 title: "picoCTF 2025 writeup"
 description: "Let's start analyzing the source: python def main(token): key = bytes.fromhex(randomstring)"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "picoCTF 2025"
 category: "Reverse Engineering"
 kind: "writeup"

@@ -1,13 +1,13 @@
 ---
 title: "CTF Skill Library Build Notes"
 description: "Confirmed facts Workspace: /home/thinh/ctf/writeups. CTF.md exists and has 12,620 lines. It is a copied CTFtime CTF index, not a small hand-curated list. CODEXSKILLSDIR is unset, so the requested install tar…"
-published: "2026-06-03"
-updated: "2026-06-04"
+published: "2026-09-21"
+updated: "2026-09-21"
 event: "CTF Archive"
 category: "Cryptography"
 kind: "field-note"
 status: "partial"
-tags: ["Cryptography", "CTF Archive", "Field notes"]
+tags: ["Cryptography", "CTF Archive", "Field notes", "xss", "sqli", "ssrf", "jwt", "ssti"]
 readingTime: 3
 wordCount: 648
 featured: false

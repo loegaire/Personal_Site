@@ -1,8 +1,8 @@
 ---
 title: "Rev Forgotten Vault — Writeup"
 description: "./forgottenvault Deep beneath Kageno, a forgotten vault stirs. A rusted mechanism hums faintly, waiting for a code long lost."
-published: "2025-11-24"
-updated: "2025-11-24"
+published: "2026-03-09"
+updated: "2026-11-08"
 event: "HTB"
 category: "Reverse Engineering"
 kind: "writeup"

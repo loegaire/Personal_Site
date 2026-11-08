@@ -1,8 +1,8 @@
 ---
 title: "Cracking Assassin's Creed II (Steam 33230) under Wine: a full writeup"
 description: "Status: not yet playable to a loaded level. This document records how far the effort got, what was measured, and what the next blocker actually is. The exact command sequences and offsets are included inline."
-published: "2026-10-20"
-updated: "2026-10-20"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"

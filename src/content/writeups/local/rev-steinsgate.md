@@ -1,13 +1,13 @@
 ---
 title: "STEINS;GATE [Build 4434295]: DRM dissection & Wine bring-up"
 description: "This is the story of taking a Steam build of STEINS;GATE, figuring out what DRM was wrapped around the executables, peeling it off by hand, and then getting the game to actually run on Linux/Wine. It is also…"
-published: "2026-10-19"
-updated: "2026-10-20"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
-tags: ["Reverse Engineering", "Archive", "Writeup"]
+tags: ["Reverse Engineering", "Archive", "Writeup", "gdb", "aes"]
 readingTime: 17
 wordCount: 3563
 featured: true

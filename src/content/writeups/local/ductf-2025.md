@@ -1,8 +1,8 @@
 ---
 title: "ductfbank1"
 description: "Our team got 14th place overall, and we'll go through the 6 challenges i was able to solve."
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"

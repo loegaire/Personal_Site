@@ -1,8 +1,8 @@
 ---
 title: "Retro cookie clicker - reverse engineering"
 description: "Install retroarch to get started payling the game:D on Arch Linux:"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "UTCTF"
 category: "Reverse Engineering"
 kind: "writeup"

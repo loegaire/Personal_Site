@@ -1,13 +1,13 @@
 ---
 title: "Switcharoo - reverse"
 description: "cat Switcharoo\\ -\\ reverse.md Switcharoo - reverse"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "pascalCTF"
 category: "Hardware / RF"
 kind: "writeup"
 status: "solved"
-tags: ["Hardware / RF", "pascalCTF", "Writeup"]
+tags: ["Hardware / RF", "pascalCTF", "Writeup", "ida"]
 readingTime: 1
 wordCount: 94
 featured: false

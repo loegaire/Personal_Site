@@ -1,8 +1,8 @@
 ---
 title: "Overfitting — Writeup"
 description: "1. Sự khác biệt giữa Toán học thuần túy và Machine Learning (Đa thức nội suy Lagrange)"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Research"
 category: "Research"
 kind: "research"

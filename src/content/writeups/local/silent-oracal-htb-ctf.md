@@ -1,8 +1,8 @@
 ---
 title: "Silent Oracal HTB CTF — Writeup"
 description: "we are given with a file and a server to connect to. Upon inspecting the file, we can see the point of interest: The program looks for a flag stored in its memory, then compares the user input to it characte…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Binary Exploitation"
 kind: "writeup"

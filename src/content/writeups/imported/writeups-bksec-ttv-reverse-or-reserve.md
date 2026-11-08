@@ -1,13 +1,13 @@
 ---
 title: "(BKSEC TTV) Reverse Or Reserve — Writeup"
 description: "Bài này cho ta một file chương trình khá obfuscated disassemble bằng IDA, sau đó dùng tính năng generate pseudocode, thu được những thông tin sau: sub14000185C là hàm check win. int64 sub14000185C() { FILE v…"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "BKSEC TTV"
 category: "Reverse Engineering"
 kind: "writeup"
 status: "solved"
-tags: ["Reverse Engineering", "BKSEC TTV", "Writeup"]
+tags: ["Reverse Engineering", "BKSEC TTV", "Writeup", "gdb"]
 readingTime: 1
 wordCount: 64
 featured: false

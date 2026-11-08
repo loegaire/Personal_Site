@@ -1,8 +1,8 @@
 ---
 title: "Ndias Hardware Iot Ctf Rev Tiny Crackme — Writeup"
 description: "Tiny crackme reverse notes =========================="
-published: "2026-05-16"
-updated: "2026-05-16"
+published: "2026-11-08"
+updated: "2026-11-08"
 event: "Archive"
 category: "Reverse Engineering"
 kind: "writeup"

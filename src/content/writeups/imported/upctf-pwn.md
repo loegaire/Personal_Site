@@ -1,13 +1,13 @@
 ---
 title: "Pwn — Writeup"
 description: "Terminal features will not be available. Consider setting TERM variable to your current terminal name (or xterm). [] '/home/thinh/ctf/upctf/pwn/car-museum' Arch: amd64-64-little RELRO: Partial RELRO Stack: N…"
-published: "2026-03-08"
-updated: "2026-03-08"
+published: "2026-03-09"
+updated: "2026-11-08"
 event: "upctf"
 category: "Binary Exploitation"
 kind: "writeup"
 status: "partial"
-tags: ["Binary Exploitation", "upctf", "Writeup"]
+tags: ["Binary Exploitation", "upctf", "Writeup", "shellcode"]
 readingTime: 1
 wordCount: 127
 featured: false

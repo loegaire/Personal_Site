@@ -1,13 +1,13 @@
 ---
 title: "(BKSEC TTV) Mem4 — Writeup"
 description: "trước tiên, kiểm tra checksum sau khi kiểm tra xong, nhận thấy file rất lớn, việc đầu tiên là thử với strings và grep: strings memdump.mem grep \"BKSEC\" cho ta vài flag(sau này sẽ dùng đến) và một nửa flag"
-published: "2025-08-29"
-updated: "2025-08-29"
+published: "2026-03-09"
+updated: "2026-09-21"
 event: "BKSEC TTV"
 category: "Miscellaneous"
 kind: "writeup"
 status: "solved"
-tags: ["Miscellaneous", "BKSEC TTV", "Writeup"]
+tags: ["Miscellaneous", "BKSEC TTV", "Writeup", "volatility"]
 readingTime: 1
 wordCount: 131
 featured: false
