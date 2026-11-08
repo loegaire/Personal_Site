@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 
@@ -48,7 +49,7 @@ const excludedSegments = new Set([
 ]);
 
 const categoryMatchers = [
-  ['Reverse Engineering', /(^|[-_/ ])(rev|reverse|reversing|crackme)([-_/ ]|$)/i],
+  ['Reverse Engineering', /(^|[-_/ ])(rev|reverse|reversing|crackme|re\d)([-_/ ]|$)/i],
   ['Binary Exploitation', /(^|[-_/ ])(pwn|binary|bof|heap|rop)([-_/ ]|$)/i],
   ['Cryptography', /(^|[-_/ ])(crypto|cryptography|cipher|rsa|aes)([-_/ ]|$)/i],
   ['Forensics', /(^|[-_/ ])(forensic|forensics|dfir|memory|pcap)([-_/ ]|$)/i],
@@ -59,6 +60,43 @@ const categoryMatchers = [
   ['Hardware / RF', /(^|[-_/ ])(hardware|rf|iot|can|scada|automotive)([-_/ ]|$)/i],
   ['AI', /(^|[-_/ ])(ai|machine learning|model)([-_/ ]|$)/i],
   ['Miscellaneous', /(^|[-_/ ])(misc|jail|puzzle|minecraft)([-_/ ]|$)/i],
+];
+
+const tagMatchers = [
+  ['ghidra', /\bghidra\b/i],
+  ['ida', /\bida pro\b|\bidapro\b/i],
+  ['gdb', /\bgdb\b/i],
+  ['pwntools', /\bpwntools\b/i],
+  ['angr', /\bangr\b/i],
+  ['z3', /\bz3\b/i],
+  ['volatility', /\bvolatility\b|\bvolshell\b/i],
+  ['wireshark', /\bwireshark\b|\btshark\b/i],
+  ['burp', /\bburp suite?\b/i],
+  ['frida', /\bfrida\b/i],
+  ['docker', /\bdocker\b|\bcontainerd\b|\bpodman\b/i],
+  ['xss', /\bxss\b|cross-site scripting/i],
+  ['sqli', /\bsqli\b|sql injection/i],
+  ['ssrf', /\bssrf\b/i],
+  ['jwt', /\bjwt\b|json web token/i],
+  ['oauth', /\boauth\b/i],
+  ['ssti', /\bssti\b|template injection/i],
+  ['deserialization', /deseriali[sz]ation/i],
+  ['buffer-overflow', /buffer overflow|\bbof\b/i],
+  ['format-string', /format string|format-string/i],
+  ['ret2libc', /ret2libc|return-to-libc/i],
+  ['rop', /\brop chain\b|\brop\b/i],
+  ['heap', /\bheap (overflow|exploit|grooming)\b|\btcache\b|\bfastbin\b/i],
+  ['shellcode', /\bshellcode\b/i],
+  ['sandbox-escape', /sandbox escape|\bseccomp\b/i],
+  ['wasm', /\bwasm\b|web assembly/i],
+  ['android', /\bandroid\b|\bapk\b/i],
+  ['pcap', /\bpcap(ng)?\b/i],
+  ['memory-forensics', /memory (dump|forensics)|\bmem\.raw\b/i],
+  ['stego', /\bstego\b|steganograph/i],
+  ['rsa', /\brsa\b/i],
+  ['aes', /\baes-?\d*\b/i],
+  ['ecc', /\becc\b|elliptic curve/i],
+  ['lattice', /\blattice\b/i],
 ];
 
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.svg']);
@@ -77,6 +115,36 @@ const attachmentExtensions = new Set([
 ]);
 const copiedAssets = new Map();
 const redactions = { instanceTokens: 0, cloudCredentials: 0, bearerTokens: 0 };
+let gitDateMap = null;
+
+function buildGitDateMap(root) {
+  const dateSource = process.env.IMPORT_DATE_SOURCE || 'auto';
+  if (dateSource === 'stat') return null;
+  const wantsGit = dateSource === 'git' || existsSync(join(root, '.git'));
+  if (!wantsGit) return null;
+  let log;
+  try {
+    log = execSync('git log --reverse --format=__COMMIT__%cI --name-only --diff-filter=AM', {
+      cwd: root,
+      maxBuffer: 256 * 1024 * 1024,
+      encoding: 'utf8',
+    });
+  } catch {
+    return null;
+  }
+  const map = new Map();
+  let commitDate = null;
+  for (const line of log.split('\n')) {
+    if (line.startsWith('__COMMIT__')) {
+      commitDate = line.slice('__COMMIT__'.length);
+    } else if (line && commitDate) {
+      const name = line.replace(/\r$/, '');
+      if (!map.has(name)) map.set(name, { first: commitDate });
+      map.get(name).last = commitDate;
+    }
+  }
+  return map;
+}
 
 function walk(directory, output = []) {
   if (!existsSync(directory)) return output;
@@ -261,6 +329,16 @@ function sanitiseSecrets(markdown) {
   return output;
 }
 
+function inferTags(path, markdown, category, event, kind) {
+  const sample = `${path}\n${markdown.slice(0, 20000)}`;
+  const technique = tagMatchers
+    .filter(([, matcher]) => matcher.test(sample))
+    .map(([tag]) => tag)
+    .slice(0, 5);
+  const kindLabel = kind === 'field-note' ? 'Field notes' : 'Writeup';
+  return [...new Set([category, event, kindLabel, ...technique])].slice(0, 8);
+}
+
 function assetUrl(group, slug, filename) {
   return `${siteBase}/media/${group}/${slug}/${encodeURIComponent(filename).replace(/%2F/gi, '/')}`;
 }
@@ -374,8 +452,10 @@ function importDocuments(candidates, baseRoot, group, outputDirectory, seenHashe
     body = normaliseCodeFences(body);
 
     const stats = statSync(sourcePath);
-    const published = stats.birthtimeMs > 0 ? stats.birthtime : stats.mtime;
-    const updated = stats.mtime;
+    const relForGit = baseRoot === ctfRoot ? relative(ctfRoot, sourcePath).split(sep).join('/') : null;
+    const gitDates = relForGit ? gitDateMap?.get(relForGit) : null;
+    const published = gitDates?.first ? new Date(gitDates.first) : stats.birthtimeMs > 0 ? stats.birthtime : stats.mtime;
+    const updated = gitDates?.last ? new Date(gitDates.last) : stats.mtime;
     const plain = stripMarkdown(body);
     const wordCount = plain ? plain.split(/\s+/).length : 0;
     const status = inferStatus(body, kind);
@@ -401,7 +481,7 @@ function importDocuments(candidates, baseRoot, group, outputDirectory, seenHashe
       category,
       kind,
       status,
-      tags: [...new Set([category, event, kind === 'field-note' ? 'Field notes' : 'Writeup'])],
+      tags: inferTags(sourcePath, body, category, event, kind),
       readingTime: Math.max(1, Math.ceil(wordCount / 220)),
       wordCount,
       featured,
@@ -470,6 +550,7 @@ function main() {
   const usedWriteupSlugs = new Set();
   const manifest = [];
   if (hasLocalCtfArchive) {
+    gitDateMap = buildGitDateMap(ctfRoot);
     rmSync(outputImportedWriteups, { recursive: true, force: true });
     importDocuments(
       ctfFiles,
@@ -529,7 +610,7 @@ function main() {
   }
 
   const stats = {
-    generatedAt: new Date().toISOString(),
+    generatedAt: process.env.IMPORT_GENERATED_AT ? new Date(process.env.IMPORT_GENERATED_AT).toISOString() : new Date().toISOString(),
     scannedCtfDocuments: ctfFiles.length,
     importedWriteups: manifest.filter((entry) => entry.collection === 'writeups').length,
     importedResearch: manifest.filter((entry) => entry.collection === 'research').length,
